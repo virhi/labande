@@ -80,8 +80,8 @@ Connexion par lien envoyé par email (Supabase Auth). Dans Supabase › Authenti
 - **Site URL** : `https://labande.app`
 - **Redirect URLs** : `https://labande.pages.dev`, `http://localhost:5173`
 
-Dans Authentication › Sign In / Providers › Email, la longueur minimale du mot de passe est à 8,
-comme dans l'app (`MIN_PASSWORD`).
+Dans Authentication › Sign In / Providers › Email, mêmes règles de mot de passe que l'app
+(`src/lib/password.ts`) : longueur minimale 10, et « Lowercase, uppercase letters and digits ».
 
 Les comptes anonymes sont refusés : l'option « Allow anonymous sign-ins » doit rester désactivée, et la base
 bloque de toute façon les comptes anonymes (migration `block_anonymous`).

@@ -68,7 +68,7 @@ export default function Profile() {
             <input id="pseudo" required maxLength={40} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
           </div>
           <ErrorText>{error}</ErrorText>
-          <div className="row gap">
+          <div className="actions">
             <button type="submit" className="btn primary grow" disabled={busy}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button>
             <button type="button" className="btn ghost" onClick={() => setEditing(false)}>Annuler</button>
           </div>

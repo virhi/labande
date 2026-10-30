@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { MIN_PASSWORD, authError, checkNewPassword } from '../lib/password'
-import { Brand, ErrorText, Screen } from '../components/ui'
+import { Brand, ErrorText, PasswordRules, Screen } from '../components/ui'
 
 type Mode = 'login' | 'signup' | 'forgot'
 
@@ -28,7 +28,7 @@ export default function Login({ intro }: { intro?: string }) {
     const cleanEmail = email.trim()
 
     if (mode === 'signup') {
-      const invalid = checkNewPassword(password, confirm)
+      const invalid = checkNewPassword(password, confirm, [name, cleanEmail])
       if (invalid) return setError(invalid)
     }
 
@@ -127,8 +127,9 @@ export default function Login({ intro }: { intro?: string }) {
               autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              aria-describedby={mode === 'signup' ? 'pw-rules' : undefined}
             />
-            {mode === 'signup' && <span className="hint">Au moins {MIN_PASSWORD} caractères.</span>}
+            {mode === 'signup' && <PasswordRules password={password} id="pw-rules" />}
           </div>
         )}
         {mode === 'signup' && (

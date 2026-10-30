@@ -91,6 +91,7 @@ export default function Challenge() {
 
   const [tab, setTab] = useState<Tab | null>(null)
   const [sheet, setSheet] = useState<'invite' | 'session' | null>(null)
+  const [template, setTemplate] = useState<Session | null>(null)
   const closeSheet = useCallback(() => setSheet(null), [])
 
   if (!data) {
@@ -150,7 +151,16 @@ export default function Challenge() {
       </div>
       <div id="tab-panel" role="tabpanel" aria-labelledby={`tab-${current}`} className="stack">
         {current === 'semaine' && <WeekRecap members={members} sessions={sessions} since={since} />}
-        {current === 'seances' && <SessionList sessions={sessions} members={members} me={me} fresh={fresh} onChange={reload} />}
+        {current === 'seances' && (
+          <SessionList
+            sessions={sessions}
+            members={members}
+            me={me}
+            fresh={fresh}
+            onChange={reload}
+            onRepeat={days >= 0 ? (s) => { setTemplate(s); setSheet('session') } : undefined}
+          />
+        )}
         {current === 'objectifs' && (
           <>
             <MyGoal challengeId={challenge.id} me={me} goal={myGoal} reviews={myGoal ? reviewsOf(myGoal.id) : []} reviewerCount={others.length} nameOf={nameOf} onSaved={reload} />
@@ -233,7 +243,7 @@ export default function Challenge() {
 
       {days >= 0 && (
         <div className="sticky-cta">
-          <button type="button" className="btn primary" onClick={() => setSheet('session')}>+ J'ai fait une séance</button>
+          <button type="button" className="btn primary" onClick={() => { setTemplate(null); setSheet('session') }}>+ J'ai fait une séance</button>
         </div>
       )}
 
@@ -243,8 +253,10 @@ export default function Challenge() {
         </Sheet>
       )}
       {sheet === 'session' && (
-        <Sheet title="Nouvelle séance" onClose={closeSheet}>
+        <Sheet title={template ? 'Refaire une séance' : 'Nouvelle séance'} onClose={closeSheet}>
           <SessionForm
+            key={template?.id ?? 'new'}
+            initial={template}
             challengeId={challenge.id}
             me={me}
             endDate={challenge.end_date}
@@ -389,7 +401,7 @@ function MyGoal({ challengeId, me, goal, reviews, reviewerCount, nameOf, onSaved
           </div>
           {goal && <p className="hint">Une nouvelle version repart en validation auprès de toute la bande.</p>}
           <ErrorText>{error}</ErrorText>
-          <div className="row gap">
+          <div className="actions">
             <button type="submit" className="btn primary grow" disabled={busy}>{busy ? 'Enregistrement…' : goal ? 'Proposer cette version' : 'Enregistrer mon objectif'}</button>
             {goal && <button type="button" className="btn ghost" onClick={() => setEditing(false)}>Annuler</button>}
           </div>
@@ -488,7 +500,7 @@ function OtherGoal({ member, me, goal, reviews, validated, nameOf, onChange }: {
             <label htmlFor={`c-${member.id}`}>Un mot pour {member.name} (facultatif)</label>
             <textarea id={`c-${member.id}`} rows={2} maxLength={500} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Tu peux viser plus haut !" />
           </div>
-          <div className="row gap">
+          <div className="actions">
             <button type="button" className="btn primary grow" onClick={() => review('too_easy', comment)}>Envoyer</button>
             <button type="button" className="btn ghost" onClick={() => setCommenting(false)}>Annuler</button>
           </div>

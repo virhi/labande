@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { avatarColor, initial } from '../lib/format'
+import { PASSWORD_RULES } from '../lib/password'
 
 // nav : écran principal, avec la barre d'onglets en bas.
 export function Screen({ children, nav = false }: { children: ReactNode; nav?: boolean }) {
@@ -61,5 +62,22 @@ export function ErrorText({ children }: { children: ReactNode }) {
     <p className="error" role="alert">
       {children}
     </p>
+  )
+}
+
+// Règles du mot de passe, cochées au fil de la saisie.
+export function PasswordRules({ password, id }: { password: string; id: string }) {
+  return (
+    <ul className="pw-rules" id={id}>
+      {PASSWORD_RULES.map((r) => {
+        const ok = r.test(password)
+        return (
+          <li key={r.id} className={ok ? 'ok' : undefined}>
+            <span aria-hidden="true">{ok ? '✓' : '○'}</span> {r.label}
+            <span className="sr-only">{ok ? ' : fait' : ' : à faire'}</span>
+          </li>
+        )
+      })}
+    </ul>
   )
 }

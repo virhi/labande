@@ -66,3 +66,32 @@ test('le panneau d’invitation s’ouvre depuis l’en-tête et se ferme', asyn
   await bob.keyboard.press('Escape')
   await expect(sheet).toHaveCount(0)
 })
+
+test('refaire une séance : tout est repris, on change juste la date', async ({ page }) => {
+  await login(page, ALICE)
+  await page.getByRole('link', { name: 'Créer un défi' }).click()
+  await page.getByLabel('Nom du défi').fill(`Défi refaire ${Date.now()}`)
+  await page.getByLabel('Date de fin').fill(inDays(30))
+  await page.getByRole('button', { name: 'Créer le défi' }).click()
+
+  await page.getByRole('button', { name: "J'ai fait une séance" }).click()
+  let form = page.getByRole('dialog', { name: 'Nouvelle séance' })
+  await form.getByLabel('Durée (min)').fill('60')
+  await form.getByLabel('Activité').fill('Vélo')
+  await form.getByLabel('Un mot (facultatif)').fill('Sortie du dimanche')
+  await form.getByRole('button', { name: 'Enregistrer la séance' }).click()
+  await expect(form).toHaveCount(0)
+
+  const list = page.getByRole('region', { name: 'Les séances' })
+  await list.getByRole('button', { name: /Refaire la séance Vélo/ }).click()
+  form = page.getByRole('dialog', { name: 'Refaire une séance' })
+  await expect(form.getByLabel('Activité')).toHaveValue('Vélo')
+  await expect(form.getByLabel('Durée (min)')).toHaveValue('60')
+  await expect(form.getByLabel('Un mot (facultatif)')).toHaveValue('Sortie du dimanche')
+  await form.getByLabel('Date').fill(inDays(-1))
+  await form.getByRole('button', { name: 'Enregistrer la séance' }).click()
+  await expect(form).toHaveCount(0)
+
+  await expect(list.getByRole('heading', { name: 'hier' })).toBeVisible()
+  await expect(list.getByText('Vélo · 1 h')).toHaveCount(2)
+})

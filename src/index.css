@@ -252,7 +252,8 @@ p {
   gap: 6px;
 }
 
-label {
+label,
+.label {
   font-size: 14px;
   font-weight: 600;
 }
@@ -611,7 +612,9 @@ input[type='file'] {
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
+  max-height: 90dvh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--bg);
   border-radius: 20px 20px 0 0;
   padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
@@ -805,4 +808,93 @@ details.more[open] > summary {
 }
 .rows.flush {
   padding: 0;
+}
+
+/* Formulaires sur téléphone ---------------------------------------------- */
+/* Safari iOS ajoute son propre style aux champs (ombre, coins, largeur des dates). */
+input:not([type='file']):not([type='checkbox']):not([type='radio']),
+textarea {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+}
+input:not([type='file']):not([type='checkbox']):not([type='radio']) {
+  height: 50px;
+}
+input[type='date'] {
+  display: block;
+  text-align: left;
+}
+input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+/* Pendant la saisie, le bouton collé en bas ne doit pas cacher le champ (ni flotter au-dessus du clavier).
+   Il revient avec un temps de retard : sinon il réapparaît sous le doigt qui touche « Envoyer ». */
+.sticky-cta {
+  transition: visibility 0s linear 0.4s;
+}
+body:has(input:focus, textarea:focus) .sticky-cta {
+  visibility: hidden;
+  transition-delay: 0s;
+}
+/* Boutons d'un formulaire : côte à côte, ou l'un sous l'autre si la place manque. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.actions .btn {
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
+.actions .btn.primary {
+  flex-basis: 60%;
+}
+.file-pick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-weight: 400;
+}
+.file-pick:focus-within .btn {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.file-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.file-pick .btn {
+  flex-shrink: 0;
+}
+.pw-rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 2px 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.pw-rules li.ok {
+  color: #15803d;
+  font-weight: 600;
+}
+.session-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
 }

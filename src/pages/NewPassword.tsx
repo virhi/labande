@@ -4,11 +4,11 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { errorMessage } from '../lib/format'
 import { MIN_PASSWORD, checkNewPassword } from '../lib/password'
-import { BackLink, Brand, ErrorText, Screen } from '../components/ui'
+import { BackLink, Brand, ErrorText, PasswordRules, Screen } from '../components/ui'
 
 // Sert après le lien « Mot de passe oublié » et depuis l'accueil pour changer son mot de passe.
 export default function NewPassword() {
-  const { recovering, endRecovery } = useAuth()
+  const { recovering, endRecovery, session, profile } = useAuth()
   const navigate = useNavigate()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -19,7 +19,7 @@ export default function NewPassword() {
   async function submit(e: FormEvent) {
     e.preventDefault()
     setError('')
-    const invalid = checkNewPassword(password, confirm)
+    const invalid = checkNewPassword(password, confirm, [profile?.display_name ?? '', session?.user.email ?? ''])
     if (invalid) return setError(invalid)
     setBusy(true)
     const { error } = await supabase.auth.updateUser({ password })
@@ -47,8 +47,8 @@ export default function NewPassword() {
         <form className="stack" onSubmit={submit}>
           <div className="field">
             <label htmlFor="password">Nouveau mot de passe</label>
-            <input id="password" type="password" required minLength={MIN_PASSWORD} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            <span className="hint">Au moins {MIN_PASSWORD} caractères.</span>
+            <input id="password" type="password" required minLength={MIN_PASSWORD} autoComplete="new-password" aria-describedby="pw-rules" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <PasswordRules password={password} id="pw-rules" />
           </div>
           <div className="field">
             <label htmlFor="confirm">Confirme le mot de passe</label>

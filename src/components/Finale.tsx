@@ -105,6 +105,7 @@ function MyProof({ challengeId, me, proof, photoUrl, onSaved }: {
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const photoLabel = proof?.photo_path ? 'Remplacer la photo' : 'Photo (facultatif)'
 
   async function save(e: FormEvent) {
     e.preventDefault()
@@ -146,11 +147,16 @@ function MyProof({ challengeId, me, proof, photoUrl, onSaved }: {
             <textarea id="p-note" rows={3} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Semi bouclé en 1h48, voici mon temps officiel" />
           </div>
           <div className="field">
-            <label htmlFor="p-photo">{proof?.photo_path ? 'Remplacer la photo' : 'Photo (facultatif)'}</label>
-            <input id="p-photo" type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <span className="label">{photoLabel}</span>
+            {/* Le sélecteur natif s'affiche dans la langue du téléphone (« Choose File ») : on le remplace. */}
+            <label className="file-pick">
+              <input id="p-photo" type="file" accept="image/*" className="sr-only" aria-label={photoLabel} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              <span className="btn outline compact" aria-hidden="true">Choisir une photo</span>
+              <span className="muted small file-name">{file ? file.name : 'Aucune photo choisie'}</span>
+            </label>
           </div>
           <ErrorText>{error}</ErrorText>
-          <div className="row gap">
+          <div className="actions">
             <button type="submit" className="btn primary grow" disabled={busy}>{busy ? 'Envoi…' : 'Envoyer ma preuve'}</button>
             {proof && <button type="button" className="btn ghost" onClick={() => setEditing(false)}>Annuler</button>}
           </div>

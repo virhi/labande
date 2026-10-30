@@ -62,18 +62,20 @@ export function WeekRecap({ members, sessions, since }: { members: Member[]; ses
   )
 }
 
-export function SessionForm({ challengeId, me, endDate, onSaved, onCancel }: {
+// initial : séance à refaire ; on reprend tout sauf la date.
+export function SessionForm({ challengeId, me, endDate, initial, onSaved, onCancel }: {
   challengeId: string
   me: string
   endDate: string
+  initial?: Pick<Session, 'kind' | 'duration_min' | 'note'> | null
   onSaved: () => void
   onCancel: () => void
 }) {
   const today = isoDate()
   const [doneOn, setDoneOn] = useState(today)
-  const [kind, setKind] = useState('')
-  const [duration, setDuration] = useState('')
-  const [note, setNote] = useState('')
+  const [kind, setKind] = useState(initial?.kind ?? '')
+  const [duration, setDuration] = useState(initial?.duration_min ? String(initial.duration_min) : '')
+  const [note, setNote] = useState(initial?.note ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -96,6 +98,7 @@ export function SessionForm({ challengeId, me, endDate, onSaved, onCancel }: {
 
   return (
     <form className="stack" onSubmit={save} aria-label="Nouvelle séance">
+      {initial && <p className="muted small">Tout est repris de la séance choisie : change la date si besoin.</p>}
       <div className="grid2">
         <div className="field">
           <label htmlFor="s-date">Date</label>
@@ -118,7 +121,7 @@ export function SessionForm({ challengeId, me, endDate, onSaved, onCancel }: {
         <textarea id="s-note" rows={2} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Fractionné 10 × 400 m, dur mais bon" />
       </div>
       <ErrorText>{error}</ErrorText>
-      <div className="row gap">
+      <div className="actions">
         <button type="submit" className="btn primary grow" disabled={busy}>{busy ? 'Enregistrement…' : 'Enregistrer la séance'}</button>
         <button type="button" className="btn ghost" onClick={onCancel}>Annuler</button>
       </div>
@@ -129,12 +132,14 @@ export function SessionForm({ challengeId, me, endDate, onSaved, onCancel }: {
 const PAGE = 15
 
 // Séances en lignes compactes, groupées par jour.
-export function SessionList({ sessions, members, me, fresh, onChange }: {
+// onRepeat : absent une fois le défi terminé (plus de nouvelle séance possible).
+export function SessionList({ sessions, members, me, fresh, onChange, onRepeat }: {
   sessions: Session[]
   members: Member[]
   me: string
   fresh: Set<string>
   onChange: () => void
+  onRepeat?: (session: Session) => void
 }) {
   const [shown, setShown] = useState(PAGE)
   const [error, setError] = useState('')
@@ -177,7 +182,14 @@ export function SessionList({ sessions, members, me, fresh, onChange }: {
                   {s.note && <span className="muted small">« {s.note} »</span>}
                 </div>
                 {s.user_id === me && (
-                  <button type="button" className="link small" onClick={() => remove(s.id)}>supprimer</button>
+                  <div className="session-actions">
+                    {onRepeat && (
+                      <button type="button" className="link small" onClick={() => onRepeat(s)} aria-label={`Refaire la séance ${s.kind ?? ''} du ${formatDay(s.done_on)}`}>
+                        refaire
+                      </button>
+                    )}
+                    <button type="button" className="link small" onClick={() => remove(s.id)}>supprimer</button>
+                  </div>
                 )}
               </li>
             ))}

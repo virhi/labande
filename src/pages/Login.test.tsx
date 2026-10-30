@@ -47,11 +47,28 @@ describe('Login', () => {
     await user.click(screen.getByRole('tab', { name: 'Créer un compte' }))
     await user.type(screen.getByLabelText('Prénom ou pseudo'), 'Julie')
     await user.type(screen.getByLabelText('Email'), 'julie@exemple.fr')
-    await user.type(screen.getByLabelText('Mot de passe'), 'motdepasse')
-    await user.type(screen.getByLabelText('Confirme le mot de passe'), 'autrechose')
+    await user.type(screen.getByLabelText('Mot de passe'), 'Sprint2026Fort')
+    await user.type(screen.getByLabelText('Confirme le mot de passe'), 'Sprint2026Faux')
     await user.click(screen.getByRole('button', { name: 'Créer mon compte' }))
 
     expect(screen.getByRole('alert')).toHaveTextContent('Les deux mots de passe ne sont pas identiques.')
+    expect(auth.signUp).not.toHaveBeenCalled()
+  })
+
+  it('coche les règles du mot de passe et refuse un mot de passe faible', async () => {
+    const user = userEvent.setup()
+    render(<Login />)
+
+    await user.click(screen.getByRole('tab', { name: 'Créer un compte' }))
+    await user.type(screen.getByLabelText('Prénom ou pseudo'), 'Julie')
+    await user.type(screen.getByLabelText('Email'), 'julie@exemple.fr')
+    await user.type(screen.getByLabelText('Mot de passe'), 'julie2026')
+    expect(screen.getByText(/Un chiffre/).closest('li')).toHaveClass('ok')
+    expect(screen.getByText(/Une majuscule/).closest('li')).not.toHaveClass('ok')
+    await user.type(screen.getByLabelText('Confirme le mot de passe'), 'julie2026')
+    await user.click(screen.getByRole('button', { name: 'Créer mon compte' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Mot de passe trop faible : au moins 10 caractères, une majuscule.')
     expect(auth.signUp).not.toHaveBeenCalled()
   })
 
@@ -63,13 +80,13 @@ describe('Login', () => {
     await user.click(screen.getByRole('tab', { name: 'Créer un compte' }))
     await user.type(screen.getByLabelText('Prénom ou pseudo'), ' Julie ')
     await user.type(screen.getByLabelText('Email'), 'julie@exemple.fr')
-    await user.type(screen.getByLabelText('Mot de passe'), 'motdepasse')
-    await user.type(screen.getByLabelText('Confirme le mot de passe'), 'motdepasse')
+    await user.type(screen.getByLabelText('Mot de passe'), 'Sprint2026Fort')
+    await user.type(screen.getByLabelText('Confirme le mot de passe'), 'Sprint2026Fort')
     await user.click(screen.getByRole('button', { name: 'Créer mon compte' }))
 
     expect(auth.signUp).toHaveBeenCalledWith({
       email: 'julie@exemple.fr',
-      password: 'motdepasse',
+      password: 'Sprint2026Fort',
       options: { data: { display_name: 'Julie' }, emailRedirectTo: window.location.origin },
     })
     expect(await screen.findByText('Regarde tes emails')).toBeInTheDocument()
