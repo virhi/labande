@@ -780,3 +780,26 @@ details.more[open] > summary {
 .leave {
   margin-top: 8px;
 }
+
+.install-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.install-card img {
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.btn.compact {
+  min-height: 40px;
+  font-size: 15px;
+  padding: 0 14px;
+}
+.inline-icon {
+  vertical-align: -3px;
+}
+.install-card .btn.ghost {
+  padding: 0;
+  border: 0;
+  min-height: 36px;
+}

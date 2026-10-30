@@ -6,6 +6,7 @@ import { daysUntil, errorMessage, formatDate, plural } from '../lib/format'
 import { newSessions } from '../lib/recap'
 import type { Tables } from '../lib/database.types'
 import { Brand, ErrorText, Screen } from '../components/ui'
+import { InstallCard } from '../components/Install'
 
 export default function Home() {
   const { session, profile } = useAuth()
@@ -47,6 +48,7 @@ export default function Home() {
         <p className="muted">Salut {profile?.display_name ?? ''}</p>
         <h1>Tes défis</h1>
       </div>
+      <InstallCard dismissible />
       <ErrorText>{error}</ErrorText>
 
       {challenges === null ? (
