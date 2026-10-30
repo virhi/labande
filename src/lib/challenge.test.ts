@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isGoalValidated, launchState } from './challenge'
+import { isGoalValidated, launchState, voteOutcome } from './challenge'
 
 const alice = { id: 'alice' }
 const bob = { id: 'bob' }
@@ -51,5 +51,37 @@ describe('launchState', () => {
     const s = launchState([alice, bob, sam], [goalA, goalB, goalS], reviews)
     expect(s.ready).toBe(true)
     expect(s.message).toBe('Tous les objectifs sont validés : le défi est lancé !')
+  })
+})
+
+describe('voteOutcome', () => {
+  const band = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+  const v = (voter_id: string, verdict: 'success' | 'fail') => ({ voter_id, target_id: 'a', verdict })
+
+  it('attend les votes tant que rien n’est décidé', () => {
+    expect(voteOutcome('a', band, [v('b', 'success')])).toEqual({ status: 'pending', success: 1, fail: 0, expected: 2 })
+  })
+
+  it('la majorité décide', () => {
+    expect(voteOutcome('a', band, [v('b', 'success'), v('c', 'success')]).status).toBe('success')
+    expect(voteOutcome('a', band, [v('b', 'fail'), v('c', 'fail')]).status).toBe('fail')
+  })
+
+  it('en cas d’égalité, le doute profite au sportif', () => {
+    expect(voteOutcome('a', band, [v('b', 'success'), v('c', 'fail')]).status).toBe('success')
+  })
+
+  it('décide dès que la majorité est atteinte', () => {
+    const five = [...band, { id: 'd' }, { id: 'e' }]
+    expect(voteOutcome('a', five, [v('b', 'fail'), v('c', 'fail'), v('d', 'fail')]).status).toBe('fail')
+  })
+
+  it('ignore les votes pour quelqu’un d’autre', () => {
+    const r = voteOutcome('a', band, [{ voter_id: 'a', target_id: 'b', verdict: 'fail' }])
+    expect(r.success + r.fail).toBe(0)
+  })
+
+  it('reste en attente pour un défi en solo', () => {
+    expect(voteOutcome('a', [{ id: 'a' }], []).status).toBe('pending')
   })
 })

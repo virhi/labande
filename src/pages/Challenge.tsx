@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { CHALLENGE_NOT_FOUND, daysUntil, errorMessage, formatDate, inviteUrl } from '../lib/format'
+import { CHALLENGE_NOT_FOUND, daysUntil, errorMessage, formatDate, inviteUrl, isoDate } from '../lib/format'
+import { newSessions } from '../lib/recap'
 import { isGoalValidated, launchState } from '../lib/challenge'
 import type { Tables } from '../lib/database.types'
 import { Avatar, BackLink, ErrorText, Screen } from '../components/ui'
 import QrCode from '../components/QrCode'
+import { SessionForm, SessionList, WeekRecap, type Session } from '../components/Sessions'
+import Finale from '../components/Finale'
 
 type Member = { id: string; name: string }
 type Review = Tables<'goal_reviews'>
@@ -17,28 +20,38 @@ type Data = {
   members: Member[]
   goals: Goal[]
   reviews: Review[]
+  sessions: Session[]
+  proofs: Tables<'proofs'>[]
+  votes: Tables<'votes'>[]
+  lastSeen: Record<string, string>
 }
 
 async function load(id: string): Promise<Data> {
-  const [c, m, g] = await Promise.all([
+  const [c, m, g, s, p, v] = await Promise.all([
     supabase.from('challenges').select('*').eq('id', id).maybeSingle(),
-    supabase.from('challenge_members').select('user_id, joined_at, profiles(id, display_name)').eq('challenge_id', id).order('joined_at'),
+    supabase.from('challenge_members').select('user_id, joined_at, last_seen_at, profiles(id, display_name)').eq('challenge_id', id).order('joined_at'),
     supabase.from('goals').select('*').eq('challenge_id', id),
+    supabase.from('training_sessions').select('*').eq('challenge_id', id).order('done_on', { ascending: false }).order('created_at', { ascending: false }),
+    supabase.from('proofs').select('*').eq('challenge_id', id),
+    supabase.from('votes').select('*').eq('challenge_id', id),
   ])
   if (c.error) throw c.error
   if (!c.data) throw new Error(CHALLENGE_NOT_FOUND)
-  if (m.error) throw m.error
-  if (g.error) throw g.error
-  const goals = g.data
+  for (const res of [m, g, s, p, v]) if (res.error) throw res.error
+  const goals = g.data ?? []
   const r = goals.length
     ? await supabase.from('goal_reviews').select('*').in('goal_id', goals.map((x) => x.id))
     : { data: [] as Review[], error: null }
   if (r.error) throw r.error
   return {
     challenge: c.data,
-    members: m.data.map((row) => ({ id: row.user_id, name: row.profiles?.display_name ?? '?' })),
+    members: (m.data ?? []).map((row) => ({ id: row.user_id, name: row.profiles?.display_name ?? '?' })),
     goals,
     reviews: r.data,
+    sessions: s.data ?? [],
+    proofs: p.data ?? [],
+    votes: v.data ?? [],
+    lastSeen: Object.fromEntries((m.data ?? []).map((row) => [row.user_id, row.last_seen_at])),
   }
 }
 
@@ -55,6 +68,19 @@ export default function Challenge() {
 
   useEffect(reload, [reload])
 
+  // Dernière visite : retenue au premier chargement (pour marquer les nouveautés), puis mise à jour.
+  const [seenAt, setSeenAt] = useState<string | null>(null)
+  useEffect(() => {
+    if (!data || seenAt) return
+    setSeenAt(data.lastSeen[me] ?? new Date().toISOString())
+    supabase.from('challenge_members').update({ last_seen_at: new Date().toISOString() }).eq('challenge_id', id).eq('user_id', me).then()
+  }, [data, seenAt, id, me])
+
+  const fresh = useMemo(
+    () => new Set(data && seenAt ? newSessions(data.sessions, me, seenAt).map((s) => s.id) : []),
+    [data, seenAt, me],
+  )
+
   if (!data) {
     return (
       <Screen>
@@ -64,7 +90,7 @@ export default function Challenge() {
     )
   }
 
-  const { challenge, members, goals, reviews } = data
+  const { challenge, members, goals, reviews, sessions, proofs, votes } = data
   const days = daysUntil(challenge.end_date)
   const nameOf = (uid: string) => members.find((m) => m.id === uid)?.name ?? '?'
   const goalOf = (uid: string) => goals.find((g) => g.user_id === uid)
@@ -72,6 +98,10 @@ export default function Challenge() {
   const others = members.filter((m) => m.id !== me)
   const isValidated = (goal: Goal) => isGoalValidated(goal, members, reviews)
   const { ready, message } = launchState(members, goals, reviews)
+  const finished = days <= 0
+  const alone = members.length < 2
+  const invite = !finished && <InviteCard code={challenge.invite_code} />
+  const since = isoDate(new Date(challenge.created_at))
 
   return (
     <Screen>
@@ -90,9 +120,17 @@ export default function Challenge() {
         {challenge.stake && <span className="on-dark-muted">Enjeu : {challenge.stake}</span>}
       </div>
 
-      <p className={ready ? 'status ok' : 'status'}>{message}</p>
+      {finished ? (
+        <Finale challengeId={challenge.id} me={me} members={members} proofs={proofs} votes={votes} onChange={reload} />
+      ) : (
+        <p className={ready ? 'status ok' : 'status'}>{message}</p>
+      )}
 
-      <InviteCard code={challenge.invite_code} />
+      {alone && invite}
+
+      <WeekRecap members={members} sessions={sessions} since={since} />
+      {days >= 0 && <SessionForm challengeId={challenge.id} me={me} endDate={challenge.end_date} onSaved={reload} />}
+      <SessionList sessions={sessions} members={members} me={me} fresh={fresh} onChange={reload} />
 
       <MyGoal challengeId={challenge.id} me={me} goal={goalOf(me)} reviews={goalOf(me) ? reviewsOf(goalOf(me)!.id) : []} reviewerCount={others.length} nameOf={nameOf} onSaved={reload} />
 
@@ -103,6 +141,8 @@ export default function Challenge() {
           <OtherGoal key={m.id} member={m} me={me} goal={goalOf(m.id)} reviews={goalOf(m.id) ? reviewsOf(goalOf(m.id)!.id) : []} validated={goalOf(m.id) ? isValidated(goalOf(m.id)!) : false} nameOf={nameOf} onChange={reload} />
         ))}
       </section>
+
+      {!alone && invite}
     </Screen>
   )
 }

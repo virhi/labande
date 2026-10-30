@@ -51,6 +51,10 @@ E2E_PASSWORD=...
 Pour créer ou recréer ces comptes, lancer `supabase/tests/seed_e2e_users.sql` sur le projet de test,
 avec ce mot de passe. Chaque passage crée un nouveau défi « Défi e2e … » ; relancer le seed les efface.
 
+Pour tester le jour J (preuves et vote), le test crée un défi qui finit demain et fait croire à
+l'appli qu'on est le lendemain via la clé `labande.now` du localStorage. Cette date simulée n'est lue
+qu'en mode test (`vite --mode test`) : elle n'existe pas dans la version déployée.
+
 Première fois : `npx playwright install chromium`.
 
 ### Règles d'accès (SQL)

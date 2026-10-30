@@ -15,9 +15,9 @@ export type Database = {
   public: {
     Tables: {
       challenge_members: {
-        Row: { challenge_id: string; joined_at: string; user_id: string }
-        Insert: { challenge_id: string; joined_at?: string; user_id: string }
-        Update: { challenge_id?: string; joined_at?: string; user_id?: string }
+        Row: { challenge_id: string; joined_at: string; last_seen_at: string; user_id: string }
+        Insert: { challenge_id: string; joined_at?: string; last_seen_at?: string; user_id: string }
+        Update: { challenge_id?: string; joined_at?: string; last_seen_at?: string; user_id?: string }
         Relationships: [
           { foreignKeyName: 'challenge_members_challenge_id_fkey'; columns: ['challenge_id']; isOneToOne: false; referencedRelation: 'challenges'; referencedColumns: ['id'] },
           { foreignKeyName: 'challenge_members_user_id_fkey'; columns: ['user_id']; isOneToOne: false; referencedRelation: 'profiles'; referencedColumns: ['id'] },

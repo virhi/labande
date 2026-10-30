@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { avatarColor, daysUntil, errorMessage, formatDate, initial, inviteUrl } from './format'
+import { addDays, avatarColor, daysUntil, errorMessage, formatDate, formatDay, formatDuration, initial, inviteUrl, plural } from './format'
 
 describe('daysUntil', () => {
   const now = new Date(2026, 9, 30, 18, 45) // 30 octobre 2026, en soirée
@@ -57,5 +57,30 @@ describe('errorMessage', () => {
 
   it('a un message par défaut', () => {
     expect(errorMessage(null)).toBe('Une erreur est survenue.')
+  })
+})
+
+describe('dates et durées', () => {
+  it('ajoute des jours en heure locale', () => {
+    expect(addDays('2026-10-31', 1)).toBe('2026-11-01')
+    expect(addDays('2026-10-26', -7)).toBe('2026-10-19')
+  })
+
+  it('écrit le jour d’une séance', () => {
+    const now = new Date(2026, 9, 30, 8)
+    expect(formatDay('2026-10-30', now)).toBe('aujourd’hui')
+    expect(formatDay('2026-10-29', now)).toBe('hier')
+    expect(formatDay('2026-10-26', now)).toBe('lun. 26 oct.')
+  })
+
+  it('écrit une durée', () => {
+    expect(formatDuration(45)).toBe('45 min')
+    expect(formatDuration(60)).toBe('1 h')
+    expect(formatDuration(95)).toBe('1 h 35')
+  })
+
+  it('accorde au pluriel', () => {
+    expect(plural(1, 'séance')).toBe('1 séance')
+    expect(plural(3, 'séance')).toBe('3 séances')
   })
 })

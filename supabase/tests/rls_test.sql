@@ -132,9 +132,50 @@ exception when others then
   insert into t_res (test, ok, detail) values ('vote : impossible pour soi-même', true, sqlerrm);
 end $$;
 
-insert into public.votes (challenge_id, voter_id, target_id, verdict)
-select v::uuid, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000a1', 'success' from t_ctx where k = 'cid';
-insert into t_res (test, ok, detail) select 'vote : on vote pour un autre membre', count(*) = 1, count(*)::text from public.votes;
+do $$ begin
+  insert into public.training_sessions (challenge_id, user_id, done_on)
+  values ((select v::uuid from t_ctx where k = 'cid'), '00000000-0000-0000-0000-0000000000b1', current_date + 5);
+  insert into t_res (test, ok) values ('séance : date future refusée', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('séance : date future refusée', true, sqlerrm);
+end $$;
+
+do $$ begin
+  update public.training_sessions set duration_min = 600;
+  insert into t_res (test, ok) values ('séance : pas de modification (on supprime et recrée)', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('séance : pas de modification (on supprime et recrée)', true, sqlerrm);
+end $$;
+
+do $$ begin
+  insert into public.votes (challenge_id, voter_id, target_id, verdict)
+  values ((select v::uuid from t_ctx where k = 'cid'), '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000a1', 'success');
+  insert into t_res (test, ok) values ('vote : fermé avant la fin du défi', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('vote : fermé avant la fin du défi', true, sqlerrm);
+end $$;
+
+do $$ begin
+  insert into public.proofs (challenge_id, user_id, note)
+  values ((select v::uuid from t_ctx where k = 'cid'), '00000000-0000-0000-0000-0000000000b1', 'Fait !');
+  insert into t_res (test, ok) values ('preuve : fermée avant la fin du défi', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('preuve : fermée avant la fin du défi', true, sqlerrm);
+end $$;
+
+with u as (
+  update public.challenge_members set last_seen_at = now()
+  where challenge_id = (select v::uuid from t_ctx where k = 'cid') returning user_id
+)
+insert into t_res (test, ok, detail)
+select 'visite : on ne note que la sienne', count(*) = 1 and bool_and(user_id = '00000000-0000-0000-0000-0000000000b1'), count(*)::text from u;
+
+do $$ begin
+  update public.challenge_members set joined_at = now() - interval '1 year';
+  insert into t_res (test, ok) values ('visite : seule la date de visite est modifiable', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('visite : seule la date de visite est modifiable', true, sqlerrm);
+end $$;
 
 -- Alice voit l'avis, puis change son objectif : l'avis est effacé --------------
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
@@ -215,6 +256,89 @@ insert into t_res (test, ok, detail)
 select 'supprimer : le premier défi est intact', count(*) = 1, count(*)::text
 from public.challenges where id = (select v::uuid from t_ctx where k = 'cid');
 set local role authenticated;
+
+-- Fin du défi : le jour J, preuves et votes s'ouvrent ------------------------------
+reset role;
+alter table public.challenges disable trigger challenges_check_update;
+update public.challenges set end_date = current_date where id = (select v::uuid from t_ctx where k = 'cid');
+alter table public.challenges enable trigger challenges_check_update;
+set local role authenticated;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated","is_anonymous":false}', true);
+
+do $$ begin
+  insert into public.training_sessions (challenge_id, user_id, done_on)
+  values ((select v::uuid from t_ctx where k = 'cid'), '00000000-0000-0000-0000-0000000000b1', current_date + 1);
+  insert into t_res (test, ok) values ('séance : refusée après la fin du défi', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('séance : refusée après la fin du défi', true, sqlerrm);
+end $$;
+
+do $$ begin
+  insert into public.proofs (challenge_id, user_id, note)
+  values ((select v::uuid from t_ctx where k = 'cid'), '00000000-0000-0000-0000-0000000000b1', '   ');
+  insert into t_res (test, ok) values ('preuve : un mot ou une photo obligatoire', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('preuve : un mot ou une photo obligatoire', true, sqlerrm);
+end $$;
+
+do $$ begin
+  insert into public.proofs (challenge_id, user_id, photo_path)
+  values ((select v::uuid from t_ctx where k = 'cid'), '00000000-0000-0000-0000-0000000000b1',
+          (select v from t_ctx where k = 'cid') || '/00000000-0000-0000-0000-0000000000a1/x.jpg');
+  insert into t_res (test, ok) values ('preuve : photo hors de son dossier refusée', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('preuve : photo hors de son dossier refusée', true, sqlerrm);
+end $$;
+
+insert into public.proofs (challenge_id, user_id, note)
+select v::uuid, '00000000-0000-0000-0000-0000000000b1', 'Semi bouclé en 1h52' from t_ctx where k = 'cid';
+insert into t_res (test, ok, detail) select 'preuve : envoyée le jour J', count(*) = 1, count(*)::text from public.proofs;
+
+insert into public.votes (challenge_id, voter_id, target_id, verdict)
+select v::uuid, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000a1', 'fail' from t_ctx where k = 'cid';
+with u as (update public.votes set verdict = 'success' returning verdict)
+insert into t_res (test, ok, detail) select 'vote : on vote puis on change d''avis', count(*) = 1 and bool_and(verdict = 'success'), count(*)::text from u;
+
+do $$ begin
+  insert into public.votes (challenge_id, voter_id, target_id, verdict)
+  values ((select v::uuid from t_ctx where k = 'cid'), '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000e1', 'fail');
+  insert into t_res (test, ok) values ('vote : seulement pour un membre du défi', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('vote : seulement pour un membre du défi', true, sqlerrm);
+end $$;
+
+do $$ begin
+  update public.votes set target_id = '00000000-0000-0000-0000-0000000000e1';
+  insert into t_res (test, ok) values ('vote : seul le verdict est modifiable', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('vote : seul le verdict est modifiable', true, sqlerrm);
+end $$;
+
+-- Photos : chacun dépose dans son dossier, la bande les voit, les autres non.
+insert into storage.objects (bucket_id, name, owner_id)
+select 'proofs', v || '/00000000-0000-0000-0000-0000000000b1/preuve.jpg', '00000000-0000-0000-0000-0000000000b1'
+from t_ctx where k = 'cid';
+insert into t_res (test, ok) values ('photo : déposée dans son dossier', true);
+
+do $$ begin
+  insert into storage.objects (bucket_id, name)
+  values ('proofs', (select v from t_ctx where k = 'cid') || '/00000000-0000-0000-0000-0000000000a1/faux.jpg');
+  insert into t_res (test, ok) values ('photo : impossible dans le dossier d''un autre', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('photo : impossible dans le dossier d''un autre', true, sqlerrm);
+end $$;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
+insert into t_res (test, ok, detail)
+select 'photo : visible par la bande', count(*) = 1, count(*)::text from storage.objects where bucket_id = 'proofs';
+with d as (delete from public.proofs returning 1)
+insert into t_res (test, ok, detail) select 'preuve : impossible de retirer celle d''un autre', count(*) = 0, count(*)::text from d;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e1","role":"authenticated","is_anonymous":false}', true);
+insert into t_res (test, ok, detail)
+select 'photo : invisible pour un inconnu', count(*) = 0, count(*)::text from storage.objects where bucket_id = 'proofs';
+insert into t_res (test, ok, detail) select 'inconnu : ne voit pas les preuves', count(*) = 0, count(*)::text from public.proofs;
 
 -- Compte anonyme : bloqué partout -----------------------------------------------
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f1","role":"authenticated","is_anonymous":true}', true);

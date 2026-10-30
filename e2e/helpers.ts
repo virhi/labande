@@ -34,3 +34,25 @@ export async function writeGoal(page: Page, title: string, target = '', unit = '
 export function memberCard(page: Page, name: string) {
   return page.locator('article', { has: page.getByText(name, { exact: true }) })
 }
+
+export function inDays(days: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  return d.toLocaleDateString('sv-SE')
+}
+
+// Alice crée un défi, Bob le rejoint ; renvoie l'adresse du défi.
+export async function createAndJoin(alice: Page, bob: Page, name: string, endDate: string): Promise<string> {
+  await alice.getByRole('link', { name: 'Créer un défi' }).click()
+  await alice.getByLabel('Nom du défi').fill(name)
+  await alice.getByLabel('Date de fin').fill(endDate)
+  await alice.getByRole('button', { name: 'Créer le défi' }).click()
+  await expect(alice.getByRole('heading', { name })).toBeVisible()
+  const url = alice.url()
+  const invite = (await alice.locator('.invite-url').textContent())!.trim()
+  await bob.goto(invite)
+  await bob.getByRole('button', { name: 'Rejoindre la bande' }).click()
+  await expect(bob).toHaveURL(url)
+  await expect(bob.getByText('2 dans la bande')).toBeVisible()
+  return url
+}
