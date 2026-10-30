@@ -2,18 +2,26 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { CHALLENGE_NOT_FOUND, daysUntil, errorMessage, formatDate, inviteUrl, isoDate } from '../lib/format'
-import { newSessions } from '../lib/recap'
+import { CHALLENGE_NOT_FOUND, daysUntil, errorMessage, formatDate, inviteUrl, isoDate, plural } from '../lib/format'
+import { newSessions, weekRecap, weekStart } from '../lib/recap'
 import { isGoalValidated, launchState } from '../lib/challenge'
 import type { Tables } from '../lib/database.types'
 import { Avatar, BackLink, ErrorText, Screen } from '../components/ui'
 import QrCode from '../components/QrCode'
-import { SessionForm, SessionList, WeekRecap, type Session } from '../components/Sessions'
+import { SessionForm, SessionList, WeekDots, WeekRecap, type Session } from '../components/Sessions'
 import Finale from '../components/Finale'
+import Sheet from '../components/Sheet'
 
 type Member = { id: string; name: string }
 type Review = Tables<'goal_reviews'>
 type Goal = Tables<'goals'>
+type Tab = 'semaine' | 'seances' | 'objectifs'
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'semaine', label: 'Semaine' },
+  { id: 'seances', label: 'Séances' },
+  { id: 'objectifs', label: 'Objectifs' },
+]
 
 type Data = {
   challenge: Tables<'challenges'>
@@ -81,6 +89,10 @@ export default function Challenge() {
     [data, seenAt, me],
   )
 
+  const [tab, setTab] = useState<Tab | null>(null)
+  const [sheet, setSheet] = useState<'invite' | 'session' | null>(null)
+  const closeSheet = useCallback(() => setSheet(null), [])
+
   if (!data) {
     return (
       <Screen>
@@ -100,54 +112,153 @@ export default function Challenge() {
   const { ready, message } = launchState(members, goals, reviews)
   const finished = days <= 0
   const alone = members.length < 2
-  const invite = !finished && <InviteCard code={challenge.invite_code} />
   const since = isoDate(new Date(challenge.created_at))
+  const myGoal = goalOf(me)
+  const myWeek = weekRecap([{ id: me }], sessions, weekStart(isoDate()))[0]
+  const current = tab ?? (ready ? 'semaine' : 'objectifs')
+
+  // Une seule chose à faire, selon la phase du défi.
+  let next: { title: string; text: string } | null = null
+  if (days === 0) next = { title: "C'est le jour J !", text: 'Envoie ta preuve, puis vote pour la bande.' }
+  else if (days < 0) next = { title: 'Défi terminé', text: 'Les preuves et les votes restent ouverts.' }
+  else if (!ready) {
+    const toReview = others.filter((m) => {
+      const g = goalOf(m.id)
+      return g && !reviews.some((r) => r.goal_id === g.id && r.reviewer_id === me)
+    }).length
+    const tooEasy = myGoal && reviewsOf(myGoal.id).some((r) => r.verdict === 'too_easy')
+    const title = alone
+      ? 'Invite ta bande'
+      : !myGoal
+        ? 'Écris ton objectif'
+        : tooEasy
+          ? 'Propose une nouvelle version de ton objectif'
+          : toReview
+            ? `Donne ton avis sur ${plural(toReview, 'objectif')}`
+            : 'Le défi se lance bientôt'
+    next = { title, text: message }
+  }
+
+  const tabs = (
+    <>
+      <div className="tabs three" role="tablist" aria-label="Contenu du défi">
+        {TABS.map((t) => (
+          <button key={t.id} type="button" role="tab" id={`tab-${t.id}`} aria-selected={current === t.id} aria-controls="tab-panel" className={current === t.id ? 'tab on' : 'tab'} onClick={() => setTab(t.id)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div id="tab-panel" role="tabpanel" aria-labelledby={`tab-${current}`} className="stack">
+        {current === 'semaine' && <WeekRecap members={members} sessions={sessions} since={since} />}
+        {current === 'seances' && <SessionList sessions={sessions} members={members} me={me} fresh={fresh} onChange={reload} />}
+        {current === 'objectifs' && (
+          <>
+            <MyGoal challengeId={challenge.id} me={me} goal={myGoal} reviews={myGoal ? reviewsOf(myGoal.id) : []} reviewerCount={others.length} nameOf={nameOf} onSaved={reload} />
+            {others.map((m) => (
+              <OtherGoal key={m.id} member={m} me={me} goal={goalOf(m.id)} reviews={goalOf(m.id) ? reviewsOf(goalOf(m.id)!.id) : []} validated={goalOf(m.id) ? isValidated(goalOf(m.id)!) : false} nameOf={nameOf} onChange={reload} />
+            ))}
+          </>
+        )}
+      </div>
+    </>
+  )
 
   return (
     <Screen>
-      <div className="row gap">
-        <BackLink to="/" />
-        <p className="eyebrow grow">{members.length} dans la bande</p>
-        {challenge.created_by === me && (
-          <Link to={`/defi/${challenge.id}/modifier`} className="link">Modifier</Link>
+      <div className={days >= 0 ? 'stack page-with-cta' : 'stack'}>
+        <div className="row between">
+          <BackLink to="/" />
+          {challenge.created_by === me && (
+            <Link to={`/defi/${challenge.id}/modifier`} className="icon-btn" aria-label="Modifier le défi">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" />
+              </svg>
+            </Link>
+          )}
+        </div>
+
+        <header className="stack tight-gap">
+          <h1>{challenge.name}</h1>
+          <div className="row gap">
+            <span className="muted grow">
+              <strong className="countdown">{days > 0 ? `J-${days}` : days === 0 ? 'Jour J' : 'Terminé'}</strong> · fin le {formatDate(challenge.end_date)}
+            </span>
+            <span className="avatars" aria-hidden="true">
+              {members.slice(0, 5).map((m) => <Avatar key={m.id} id={m.id} name={m.name} size={28} />)}
+            </span>
+            {!finished && (
+              <button type="button" className="icon-btn small" aria-label="Inviter" onClick={() => setSheet('invite')}>+</button>
+            )}
+          </div>
+          <span className="muted small">
+            {members.length} dans la bande{challenge.stake ? ` · Enjeu : ${challenge.stake}` : ''}
+          </span>
+        </header>
+
+        {next ? (
+          <section className="card next-step stack tight-gap" aria-label="Prochaine étape">
+            <strong className="next-title">{next.title}</strong>
+            <span className={ready ? 'status ok' : 'muted'}>{next.text}</span>
+          </section>
+        ) : (
+          <section className="card dark hero" aria-label="Ton défi">
+            <span className="on-dark-muted small">Ton objectif</span>
+            <span className="hero-goal">{myGoal?.title}</span>
+            <span className="status ok on-dark">{message}</span>
+            <span className="row gap">
+              <span className="on-dark-muted small grow">Ta semaine</span>
+              <WeekDots days={myWeek.days} />
+              <strong className="count">{myWeek.count}</strong>
+            </span>
+          </section>
+        )}
+
+        {alone && !finished && <InviteCard code={challenge.invite_code} />}
+
+        {finished ? (
+          <>
+            <Finale challengeId={challenge.id} me={me} members={members} proofs={proofs} votes={votes} onChange={reload} />
+            <details className="more">
+              <summary>Séances et objectifs</summary>
+              <div className="stack">{tabs}</div>
+            </details>
+          </>
+        ) : (
+          tabs
         )}
       </div>
-      <h1>{challenge.name}</h1>
 
-      <div className="card dark">
-        <span className="big-number">{Math.max(0, days)}</span>
-        <span>{days > 0 ? 'jours restants' : days === 0 ? "C'est le jour J !" : 'Défi terminé'} · fin le {formatDate(challenge.end_date)}</span>
-        {challenge.stake && <span className="on-dark-muted">Enjeu : {challenge.stake}</span>}
-      </div>
-
-      {finished ? (
-        <Finale challengeId={challenge.id} me={me} members={members} proofs={proofs} votes={votes} onChange={reload} />
-      ) : (
-        <p className={ready ? 'status ok' : 'status'}>{message}</p>
+      {days >= 0 && (
+        <div className="sticky-cta">
+          <button type="button" className="btn primary" onClick={() => setSheet('session')}>+ J'ai fait une séance</button>
+        </div>
       )}
 
-      {alone && invite}
-
-      <WeekRecap members={members} sessions={sessions} since={since} />
-      {days >= 0 && <SessionForm challengeId={challenge.id} me={me} endDate={challenge.end_date} onSaved={reload} />}
-      <SessionList sessions={sessions} members={members} me={me} fresh={fresh} onChange={reload} />
-
-      <MyGoal challengeId={challenge.id} me={me} goal={goalOf(me)} reviews={goalOf(me) ? reviewsOf(goalOf(me)!.id) : []} reviewerCount={others.length} nameOf={nameOf} onSaved={reload} />
-
-      <section className="stack">
-        <h2>Les objectifs de la bande</h2>
-        {others.length === 0 && <p className="muted">Personne n'a encore rejoint. Partage le lien d'invitation.</p>}
-        {others.map((m) => (
-          <OtherGoal key={m.id} member={m} me={me} goal={goalOf(m.id)} reviews={goalOf(m.id) ? reviewsOf(goalOf(m.id)!.id) : []} validated={goalOf(m.id) ? isValidated(goalOf(m.id)!) : false} nameOf={nameOf} onChange={reload} />
-        ))}
-      </section>
-
-      {!alone && invite}
+      {sheet === 'invite' && (
+        <Sheet title="Invite ta bande" onClose={closeSheet}>
+          <InviteCard code={challenge.invite_code} bare />
+        </Sheet>
+      )}
+      {sheet === 'session' && (
+        <Sheet title="Nouvelle séance" onClose={closeSheet}>
+          <SessionForm
+            challengeId={challenge.id}
+            me={me}
+            endDate={challenge.end_date}
+            onCancel={closeSheet}
+            onSaved={() => {
+              closeSheet()
+              setTab('seances')
+              reload()
+            }}
+          />
+        </Sheet>
+      )}
     </Screen>
   )
 }
 
-function InviteCard({ code }: { code: string }) {
+function InviteCard({ code, bare = false }: { code: string; bare?: boolean }) {
   const [copied, setCopied] = useState(false)
   const url = inviteUrl(code)
 
@@ -169,8 +280,8 @@ function InviteCard({ code }: { code: string }) {
   }
 
   return (
-    <section className="card stack">
-      <h2>Invite ta bande</h2>
+    <section className={bare ? 'stack' : 'card stack'}>
+      {!bare && <h2>Invite ta bande</h2>}
       <div className="qr-box">
         <QrCode value={url} label="QR code d'invitation au défi" />
         <p className="muted small">Fais scanner ce QR code avec l'appareil photo, ou envoie le lien.</p>

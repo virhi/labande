@@ -41,7 +41,7 @@ test('le créateur modifie puis supprime son défi, les autres ne peuvent pas', 
   await alice.getByRole('button', { name: 'Enregistrer les modifications' }).click()
   await expect(alice).toHaveURL(challengeUrl)
   await expect(alice.getByRole('heading', { name: renamed })).toBeVisible()
-  await expect(alice.getByText('45', { exact: true })).toBeVisible()
+  await expect(alice.getByText('J-45', { exact: true })).toBeVisible()
   await expect(alice.getByText('Enjeu : Le perdant fait le ménage')).toBeVisible()
 
   await bob.reload()

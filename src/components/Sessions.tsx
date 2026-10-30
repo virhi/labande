@@ -11,6 +11,16 @@ export type Session = Tables<'training_sessions'>
 const DAY_LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
 const KINDS = ['Course', 'Vélo', 'Natation', 'Muscu', 'Marche', 'Yoga', 'Escalade']
 
+export function WeekDots({ days }: { days: boolean[] }) {
+  return (
+    <span className="week-dots" aria-hidden="true">
+      {days.map((on, i) => (
+        <span key={i} className={on ? 'dot on' : 'dot'}>{DAY_LETTERS[i]}</span>
+      ))}
+    </span>
+  )
+}
+
 // Le récap de la semaine, sur le site plutôt que par email.
 export function WeekRecap({ members, sessions, since }: { members: Member[]; sessions: Session[]; since: string }) {
   const today = isoDate()
@@ -30,11 +40,7 @@ export function WeekRecap({ members, sessions, since }: { members: Member[]; ses
           <li key={w.id} className="row gap" aria-label={`${nameOf(w.id)} : ${plural(w.count, 'séance')} cette semaine`}>
             <Avatar id={w.id} name={nameOf(w.id)} size={32} />
             <span className="grow ellipsis">{nameOf(w.id)}</span>
-            <span className="week-dots" aria-hidden="true">
-              {w.days.map((on, i) => (
-                <span key={i} className={on ? 'dot on' : 'dot'}>{DAY_LETTERS[i]}</span>
-              ))}
-            </span>
+            <WeekDots days={w.days} />
             <strong className="count">{w.count}</strong>
           </li>
         ))}
@@ -56,14 +62,14 @@ export function WeekRecap({ members, sessions, since }: { members: Member[]; ses
   )
 }
 
-export function SessionForm({ challengeId, me, endDate, onSaved }: {
+export function SessionForm({ challengeId, me, endDate, onSaved, onCancel }: {
   challengeId: string
   me: string
   endDate: string
   onSaved: () => void
+  onCancel: () => void
 }) {
   const today = isoDate()
-  const [open, setOpen] = useState(false)
   const [doneOn, setDoneOn] = useState(today)
   const [kind, setKind] = useState('')
   const [duration, setDuration] = useState('')
@@ -85,25 +91,11 @@ export function SessionForm({ challengeId, me, endDate, onSaved }: {
     })
     setBusy(false)
     if (error) return setError(errorMessage(error))
-    setOpen(false)
-    setKind('')
-    setDuration('')
-    setNote('')
-    setDoneOn(today)
     onSaved()
   }
 
-  if (!open) {
-    return (
-      <button type="button" className="btn primary" onClick={() => setOpen(true)}>
-        J'ai fait une séance
-      </button>
-    )
-  }
-
   return (
-    <form className="card stack" onSubmit={save} aria-label="Nouvelle séance">
-      <h2>Nouvelle séance</h2>
+    <form className="stack" onSubmit={save} aria-label="Nouvelle séance">
       <div className="grid2">
         <div className="field">
           <label htmlFor="s-date">Date</label>
@@ -128,14 +120,15 @@ export function SessionForm({ challengeId, me, endDate, onSaved }: {
       <ErrorText>{error}</ErrorText>
       <div className="row gap">
         <button type="submit" className="btn primary grow" disabled={busy}>{busy ? 'Enregistrement…' : 'Enregistrer la séance'}</button>
-        <button type="button" className="btn ghost" onClick={() => setOpen(false)}>Annuler</button>
+        <button type="button" className="btn ghost" onClick={onCancel}>Annuler</button>
       </div>
     </form>
   )
 }
 
-const PAGE = 10
+const PAGE = 15
 
+// Séances en lignes compactes, groupées par jour.
 export function SessionList({ sessions, members, me, fresh, onChange }: {
   sessions: Session[]
   members: Member[]
@@ -154,35 +147,43 @@ export function SessionList({ sessions, members, me, fresh, onChange }: {
     onChange()
   }
 
+  const days: { day: string; items: Session[] }[] = []
+  for (const s of sessions.slice(0, shown)) {
+    const last = days[days.length - 1]
+    if (last?.day === s.done_on) last.items.push(s)
+    else days.push({ day: s.done_on, items: [s] })
+  }
+
   return (
-    <section className="stack" aria-labelledby="seances-title">
-      <h2 id="seances-title">Les séances</h2>
+    <section className="stack" aria-label="Les séances">
       <ErrorText>{error}</ErrorText>
-      {sessions.length === 0 ? (
+      {sessions.length === 0 && (
         <p className="muted">Aucune séance pour l'instant. La première motive toute la bande.</p>
-      ) : (
-        <ul className="list">
-          {sessions.slice(0, shown).map((s) => (
-            <li key={s.id} className="card row gap start session">
-              <Avatar id={s.user_id} name={nameOf(s.user_id)} size={36} />
-              <div className="stack tight grow">
-                <span>
-                  <strong>{s.user_id === me ? 'Toi' : nameOf(s.user_id)}</strong>
-                  {fresh.has(s.id) && <span className="tag">nouveau</span>}
-                </span>
-                <span>{[s.kind ?? 'Séance', s.duration_min ? formatDuration(s.duration_min) : null].filter(Boolean).join(' · ')}</span>
-                {s.note && <span className="muted small">« {s.note} »</span>}
-              </div>
-              <div className="stack tight end">
-                <span className="muted small">{formatDay(s.done_on)}</span>
+      )}
+      {days.map(({ day, items }) => (
+        <div key={day} className="stack tight-gap">
+          <h3 className="day-title">{formatDay(day)}</h3>
+          <ul className="rows card">
+            {items.map((s) => (
+              <li key={s.id} className="row gap start session">
+                <Avatar id={s.user_id} name={nameOf(s.user_id)} size={32} />
+                <div className="stack tight grow">
+                  <span>
+                    <strong>{s.user_id === me ? 'Toi' : nameOf(s.user_id)}</strong>
+                    {' · '}
+                    {[s.kind ?? 'Séance', s.duration_min ? formatDuration(s.duration_min) : null].filter(Boolean).join(' · ')}
+                    {fresh.has(s.id) && <span className="tag">nouveau</span>}
+                  </span>
+                  {s.note && <span className="muted small">« {s.note} »</span>}
+                </div>
                 {s.user_id === me && (
                   <button type="button" className="link small" onClick={() => remove(s.id)}>supprimer</button>
                 )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
       {sessions.length > shown && (
         <button type="button" className="btn ghost" onClick={() => setShown(shown + PAGE)}>Voir plus de séances</button>
       )}

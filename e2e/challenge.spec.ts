@@ -21,7 +21,7 @@ test('créer un défi, inviter, se mettre d’accord sur les objectifs', async (
   await alice.getByRole('button', { name: 'Créer le défi' }).click()
 
   await expect(alice.getByRole('heading', { name })).toBeVisible()
-  await expect(alice.getByText('60', { exact: true })).toBeVisible()
+  await expect(alice.getByText('J-60', { exact: true })).toBeVisible()
   await expect(alice.getByText('Invite au moins un ami pour lancer le défi.')).toBeVisible()
   await expect(alice.getByRole('img', { name: "QR code d'invitation au défi" })).toBeVisible()
   await writeGoal(alice, 'Courir un semi en moins de 1h50', '1h50', 'temps')
@@ -65,6 +65,8 @@ test('créer un défi, inviter, se mettre d’accord sur les objectifs', async (
 
   await alice.reload()
   await expect(alice.getByText('Tous les objectifs sont validés : le défi est lancé !')).toBeVisible()
+  // Une fois le défi lancé, la page s'ouvre sur la semaine : les objectifs sont dans leur onglet.
+  await alice.getByRole('tab', { name: 'Objectifs' }).click()
   await expect(memberCard(alice, 'Bob').getByText('Validé par toute la bande')).toBeVisible()
 
   // Le défi apparaît dans la liste de Bob.

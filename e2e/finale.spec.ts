@@ -25,12 +25,13 @@ test('jour J : preuve avec photo, vote de la bande et historique', async ({ brow
   const url = await createAndJoin(alice, bob, name, inDays(1))
 
   // Avant le jour J, pas de preuve ni de vote.
-  await expect(bob.getByRole('heading', { name: 'Fin du défi' })).toHaveCount(0)
+  await expect(bob.getByRole('list', { name: 'Étapes du jour J' })).toHaveCount(0)
 
   await tomorrow(alice)
   await tomorrow(bob)
   await alice.goto(url)
-  await expect(alice.getByRole('heading', { name: 'Fin du défi' })).toBeVisible()
+  await expect(alice.getByText("C'est le jour J !")).toBeVisible()
+  await expect(alice.getByRole('list', { name: 'Étapes du jour J' })).toContainText('1. Preuve')
   await expect(alice.getByRole('button', { name: "J'ai fait une séance" })).toBeVisible()
 
   // Alice envoie sa preuve, avec un mot et une photo.
@@ -39,6 +40,7 @@ test('jour J : preuve avec photo, vote de la bande et historique', async ({ brow
   await alice.getByRole('button', { name: 'Envoyer ma preuve' }).click()
   await expect(alice.getByRole('img', { name: 'Ta photo de preuve' })).toBeVisible()
   await expect(alice.getByText('« Semi bouclé en 1h48 »')).toBeVisible()
+  await expect(alice.getByText('1. Preuve ✓')).toBeVisible()
 
   // Bob voit la preuve et vote.
   await bob.goto(url)

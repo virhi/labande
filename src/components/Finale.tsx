@@ -48,25 +48,18 @@ export default function Finale({ challengeId, me, members, proofs, votes, onChan
   const urls = usePhotoUrls(proofs)
   const proofOf = (id: string) => proofs.find((p) => p.user_id === id)
   const others = members.filter((m) => m.id !== me)
-  const pendingVotes = others.filter((m) => !votes.some((v) => v.voter_id === me && v.target_id === m.id)).length
+  const myVotes = others.filter((m) => votes.some((v) => v.voter_id === me && v.target_id === m.id)).length
+  const hasProof = !!proofOf(me)
 
   return (
     <section className="stack" aria-labelledby="finale-title">
-      <h2 id="finale-title">Fin du défi</h2>
-      <p className="muted">
-        Chacun montre ce qu'il a fait, puis la bande vote. La majorité décide ; en cas d'égalité, le doute profite au sportif.
-        {pendingVotes > 0 && ` Il te reste ${pendingVotes} vote${pendingVotes > 1 ? 's' : ''}.`}
-      </p>
-
-      <ul className="list tight card">
-        {members.map((m) => (
-          <li key={m.id} className="row gap">
-            <Avatar id={m.id} name={m.name} size={28} />
-            <span className="grow ellipsis">{m.id === me ? 'Toi' : m.name}</span>
-            <OutcomeBadge outcome={voteOutcome(m.id, members, votes)} />
-          </li>
-        ))}
-      </ul>
+      <h2 id="finale-title" className="sr-only">Fin du défi</h2>
+      <ol className="steps" aria-label="Étapes du jour J">
+        <li className={hasProof ? 'done' : 'current'}>1. Preuve{hasProof ? ' ✓' : ''}</li>
+        <li className={!others.length ? '' : myVotes === others.length ? 'done' : hasProof ? 'current' : ''}>
+          2. Votes {myVotes}/{others.length}
+        </li>
+      </ol>
 
       <MyProof challengeId={challengeId} me={me} proof={proofOf(me)} photoUrl={urls[proofOf(me)?.photo_path ?? '']} onSaved={onChange} />
 
@@ -82,6 +75,20 @@ export default function Finale({ challengeId, me, members, proofs, votes, onChan
           onChange={onChange}
         />
       ))}
+
+      <section className="card stack" aria-labelledby="resultats">
+        <h2 id="resultats">Résultats</h2>
+        <p className="muted small">La majorité décide ; en cas d'égalité, le doute profite au sportif.</p>
+        <ul className="list tight">
+          {members.map((m) => (
+            <li key={m.id} className="row gap">
+              <Avatar id={m.id} name={m.name} size={28} />
+              <span className="grow ellipsis">{m.id === me ? 'Toi' : m.name}</span>
+              <OutcomeBadge outcome={voteOutcome(m.id, members, votes)} />
+            </li>
+          ))}
+        </ul>
+      </section>
     </section>
   )
 }
