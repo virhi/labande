@@ -37,9 +37,12 @@ export default function Home() {
     <Screen>
       <div className="row between">
         <Brand />
-        <button type="button" className="link" onClick={() => supabase.auth.signOut()}>
-          Se déconnecter
-        </button>
+        <div className="row gap">
+          <Link to="/mot-de-passe" className="link">Mot de passe</Link>
+          <button type="button" className="link" onClick={() => supabase.auth.signOut()}>
+            Se déconnecter
+          </button>
+        </div>
       </div>
 
       {editing ? (

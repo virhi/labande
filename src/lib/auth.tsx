@@ -7,6 +7,9 @@ type AuthState = {
   session: Session | null
   profile: Tables<'profiles'> | null
   loading: boolean
+  // Vrai quand on arrive par le lien « Mot de passe oublié » : il faut choisir un nouveau mot de passe.
+  recovering: boolean
+  endRecovery: () => void
   refreshProfile: () => Promise<void>
 }
 
@@ -16,6 +19,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Tables<'profiles'> | null>(null)
   const [loading, setLoading] = useState(true)
+  const [recovering, setRecovering] = useState(false)
 
   const loadProfile = useCallback(async (userId: string | undefined) => {
     if (!userId) {
@@ -32,8 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await loadProfile(data.session?.user.id)
       setLoading(false)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next)
+      if (event === 'PASSWORD_RECOVERY') setRecovering(true)
+      if (event === 'SIGNED_OUT') setRecovering(false)
       // Pas d'appel Supabase direct dans ce callback : on le décale.
       setTimeout(() => loadProfile(next?.user.id), 0)
     })
@@ -43,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfile = useCallback(() => loadProfile(session?.user.id), [loadProfile, session])
 
   return (
-    <AuthContext.Provider value={{ session, profile, loading, refreshProfile }}>
+    <AuthContext.Provider value={{ session, profile, loading, recovering, endRecovery: () => setRecovering(false), refreshProfile }}>
       {children}
     </AuthContext.Provider>
   )

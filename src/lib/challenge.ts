@@ -1,0 +1,32 @@
+import type { Tables } from './database.types'
+
+type Goal = Pick<Tables<'goals'>, 'id' | 'user_id'>
+type Review = Pick<Tables<'goal_reviews'>, 'goal_id' | 'reviewer_id' | 'verdict'>
+type Member = { id: string }
+
+// Un objectif est validé quand tous les autres membres ont répondu « Valider ».
+export function isGoalValidated(goal: Goal, members: Member[], reviews: Review[]): boolean {
+  return members
+    .filter((m) => m.id !== goal.user_id)
+    .every((m) => reviews.some((r) => r.goal_id === goal.id && r.reviewer_id === m.id && r.verdict === 'ok'))
+}
+
+export type LaunchState = { ready: boolean; missing: number; pending: number; message: string }
+
+// Le défi est lancé quand chacun a écrit son objectif et que tous les objectifs sont validés.
+export function launchState(members: Member[], goals: Goal[], reviews: Review[]): LaunchState {
+  const missing = members.filter((m) => !goals.some((g) => g.user_id === m.id)).length
+  const pending = goals.filter((g) => !isGoalValidated(g, members, reviews)).length
+  const ready = members.length > 1 && missing === 0 && pending === 0
+
+  let message: string
+  if (ready) message = 'Tous les objectifs sont validés : le défi est lancé !'
+  else if (members.length < 2) message = 'Invite au moins un ami pour lancer le défi.'
+  else {
+    const parts = []
+    if (missing) parts.push(`${missing} objectif${missing > 1 ? 's' : ''} à écrire`)
+    if (pending) parts.push(`${pending} à valider`)
+    message = `En attente : ${parts.join(', ')}.`
+  }
+  return { ready, missing, pending, message }
+}

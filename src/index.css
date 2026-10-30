@@ -329,6 +329,37 @@ textarea:focus {
   cursor: pointer;
 }
 
+.link.center {
+  align-self: center;
+  min-height: 44px;
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  background: var(--soft);
+  border-radius: var(--radius);
+}
+
+.tab {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.tab.on {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+}
+
 .back {
   width: 44px;
   height: 44px;

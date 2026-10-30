@@ -1,8 +1,8 @@
 // Nombre de jours entre aujourd'hui et une date 'AAAA-MM-JJ' (négatif si passée).
-export function daysUntil(isoDate: string): number {
+export function daysUntil(isoDate: string, now: Date = new Date()): number {
   const [y, m, d] = isoDate.split('-').map(Number)
   const end = new Date(y, m - 1, d)
-  const today = new Date()
+  const today = new Date(now)
   today.setHours(0, 0, 0, 0)
   return Math.round((end.getTime() - today.getTime()) / 86_400_000)
 }

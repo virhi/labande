@@ -1,0 +1,76 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Les tests fonctionnels et SQL partagent le projet Supabase de test : une exécution à la fois.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Lint, tests unitaires et build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  e2e:
+    name: Tests fonctionnels (Playwright)
+    runs-on: ubuntu-latest
+    needs: unit
+    concurrency:
+      group: supabase-test-project
+    env:
+      CI: true
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+    steps:
+      - name: Secret E2E_PASSWORD manquant
+        if: env.E2E_PASSWORD == ''
+        run: |
+          echo "::error::Ajoute le secret E2E_PASSWORD dans Settings › Secrets and variables › Actions (voir README)."
+          exit 1
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results
+          retention-days: 7
+
+  rls:
+    name: Règles d'accès de la base (SQL)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: supabase-test-project-sql
+    env:
+      SUPABASE_TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL }}
+    steps:
+      - name: Secret SUPABASE_TEST_DB_URL manquant
+        if: env.SUPABASE_TEST_DB_URL == ''
+        run: |
+          echo "::error::Ajoute le secret SUPABASE_TEST_DB_URL dans Settings › Secrets and variables › Actions (voir README)."
+          exit 1
+      - uses: actions/checkout@v4
+      - name: Installer psql
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Lancer supabase/tests/rls_test.sql
+        run: psql "$SUPABASE_TEST_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_test.sql

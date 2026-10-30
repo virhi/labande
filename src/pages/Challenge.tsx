@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { daysUntil, errorMessage, formatDate, inviteUrl } from '../lib/format'
+import { isGoalValidated, launchState } from '../lib/challenge'
 import type { Tables } from '../lib/database.types'
 import { Avatar, BackLink, ErrorText, Screen } from '../components/ui'
 import QrCode from '../components/QrCode'
@@ -68,14 +69,8 @@ export default function Challenge() {
   const goalOf = (uid: string) => goals.find((g) => g.user_id === uid)
   const reviewsOf = (goalId: string) => reviews.filter((r) => r.goal_id === goalId)
   const others = members.filter((m) => m.id !== me)
-  const isValidated = (goal: Goal) => {
-    const rs = reviewsOf(goal.id)
-    const reviewers = members.filter((m) => m.id !== goal.user_id)
-    return reviewers.every((m) => rs.some((r) => r.reviewer_id === m.id && r.verdict === 'ok'))
-  }
-  const missing = members.filter((m) => !goalOf(m.id)).length
-  const pending = goals.filter((g) => !isValidated(g)).length
-  const ready = members.length > 1 && missing === 0 && pending === 0
+  const isValidated = (goal: Goal) => isGoalValidated(goal, members, reviews)
+  const { ready, message } = launchState(members, goals, reviews)
 
   return (
     <Screen>
@@ -91,13 +86,7 @@ export default function Challenge() {
         {challenge.stake && <span className="on-dark-muted">Enjeu : {challenge.stake}</span>}
       </div>
 
-      <p className={ready ? 'status ok' : 'status'}>
-        {ready
-          ? 'Tous les objectifs sont validés : le défi est lancé !'
-          : members.length < 2
-            ? 'Invite au moins un ami pour lancer le défi.'
-            : `En attente : ${missing ? `${missing} objectif${missing > 1 ? 's' : ''} à écrire` : ''}${missing && pending ? ', ' : ''}${pending ? `${pending} à valider` : ''}.`}
-      </p>
+      <p className={ready ? 'status ok' : 'status'}>{message}</p>
 
       <InviteCard code={challenge.invite_code} />
 

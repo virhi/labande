@@ -7,9 +7,10 @@ import Home from './pages/Home'
 import NewChallenge from './pages/NewChallenge'
 import Join from './pages/Join'
 import Challenge from './pages/Challenge'
+import NewPassword from './pages/NewPassword'
 
 function Gate() {
-  const { session, loading } = useAuth()
+  const { session, loading, recovering } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -34,9 +35,13 @@ function Gate() {
     return <Login intro={inviting ? 'Un ami t’invite à un défi. Connecte-toi pour le rejoindre.' : undefined} />
   }
 
+  // Arrivée par le lien « Mot de passe oublié » : on choisit d'abord le nouveau mot de passe.
+  if (recovering) return <NewPassword />
+
   return (
     <Routes>
       <Route path="/" element={<Home />} />
+      <Route path="/mot-de-passe" element={<NewPassword />} />
       <Route path="/nouveau" element={<NewChallenge />} />
       <Route path="/rejoindre/:code" element={<Join />} />
       <Route path="/defi/:id" element={<Challenge />} />
