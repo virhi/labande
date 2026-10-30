@@ -11,9 +11,9 @@ begin;
 -- Comptes de test -----------------------------------------------------------
 -- alice crée le défi, bob le rejoint, eve est une inconnue, anon un compte anonyme.
 insert into auth.users (id, email, aud, role, instance_id, raw_user_meta_data) values
-  ('00000000-0000-0000-0000-0000000000a1', 'alice@labande.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', '{"display_name":"Alice"}'),
-  ('00000000-0000-0000-0000-0000000000b1', 'bob@labande.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', '{}'),
-  ('00000000-0000-0000-0000-0000000000e1', 'eve@labande.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', '{}');
+  ('00000000-0000-0000-0000-0000000000a1', 'rls-alice@labande.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', '{"display_name":"Alice"}'),
+  ('00000000-0000-0000-0000-0000000000b1', 'rls-bob@labande.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', '{}'),
+  ('00000000-0000-0000-0000-0000000000e1', 'rls-eve@labande.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', '{}');
 insert into auth.users (id, aud, role, instance_id, is_anonymous) values
   ('00000000-0000-0000-0000-0000000000f1', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', true);
 
@@ -27,7 +27,7 @@ insert into t_res (test, ok, detail)
 select 'inscription : pseudo repris dans le profil', display_name = 'Alice', display_name
 from public.profiles where id = '00000000-0000-0000-0000-0000000000a1';
 insert into t_res (test, ok, detail)
-select 'inscription : sans pseudo, début de l''email', display_name = 'bob', display_name
+select 'inscription : sans pseudo, début de l''email', display_name = 'rls-bob', display_name
 from public.profiles where id = '00000000-0000-0000-0000-0000000000b1';
 
 -- Alice crée un défi et écrit son objectif ----------------------------------
