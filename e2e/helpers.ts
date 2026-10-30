@@ -41,6 +41,16 @@ export function inDays(days: number): string {
   return d.toLocaleDateString('sv-SE')
 }
 
+// Ouvre le panneau d'invitation, lit le lien, puis referme le panneau.
+export async function inviteLink(page: Page): Promise<string> {
+  await page.getByRole('button', { name: 'Inviter', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: 'Invite ta bande' })
+  const url = (await sheet.locator('.invite-url').textContent())!.trim()
+  await page.keyboard.press('Escape')
+  await expect(sheet).toHaveCount(0)
+  return url
+}
+
 // Alice crée un défi, Bob le rejoint ; renvoie l'adresse du défi.
 export async function createAndJoin(alice: Page, bob: Page, name: string, endDate: string): Promise<string> {
   await alice.getByRole('link', { name: 'Créer un défi' }).click()
@@ -49,7 +59,7 @@ export async function createAndJoin(alice: Page, bob: Page, name: string, endDat
   await alice.getByRole('button', { name: 'Créer le défi' }).click()
   await expect(alice.getByRole('heading', { name })).toBeVisible()
   const url = alice.url()
-  const invite = (await alice.locator('.invite-url').textContent())!.trim()
+  const invite = await inviteLink(alice)
   await bob.goto(invite)
   await bob.getByRole('button', { name: 'Rejoindre la bande' }).click()
   await expect(bob).toHaveURL(url)

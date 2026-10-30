@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ALICE, BOB, login } from './helpers'
+import { ALICE, BOB, inviteLink, login } from './helpers'
 
 function inDays(days: number): string {
   const d = new Date()
@@ -20,7 +20,7 @@ test('le créateur modifie puis supprime son défi, les autres ne peuvent pas', 
   await alice.getByRole('button', { name: 'Créer le défi' }).click()
   await expect(alice.getByRole('heading', { name })).toBeVisible()
   const challengeUrl = alice.url()
-  const inviteUrl = (await alice.locator('.invite-url').textContent())!.trim()
+  const inviteUrl = await inviteLink(alice)
 
   // Bob rejoint : il ne voit pas « Modifier » et ne peut pas ouvrir la page de modification.
   await login(bob, BOB)

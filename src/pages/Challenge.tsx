@@ -199,6 +199,9 @@ export default function Challenge() {
           <section className="card next-step stack tight-gap" aria-label="Prochaine étape">
             <strong className="next-title">{next.title}</strong>
             <span className={ready ? 'status ok' : 'muted'}>{next.text}</span>
+            {alone && !finished && (
+              <button type="button" className="btn dark" onClick={() => setSheet('invite')}>Montrer le QR code</button>
+            )}
           </section>
         ) : (
           <section className="card dark hero" aria-label="Ton défi">
@@ -212,8 +215,6 @@ export default function Challenge() {
             </span>
           </section>
         )}
-
-        {alone && !finished && <InviteCard code={challenge.invite_code} />}
 
         {finished ? (
           <>

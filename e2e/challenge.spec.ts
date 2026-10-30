@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ALICE, BOB, fillLogin, login, memberCard, writeGoal } from './helpers'
+import { ALICE, BOB, fillLogin, inviteLink, login, memberCard, writeGoal } from './helpers'
 
 function inDays(days: number): string {
   const d = new Date()
@@ -23,10 +23,14 @@ test('créer un défi, inviter, se mettre d’accord sur les objectifs', async (
   await expect(alice.getByRole('heading', { name })).toBeVisible()
   await expect(alice.getByText('J-60', { exact: true })).toBeVisible()
   await expect(alice.getByText('Invite au moins un ami pour lancer le défi.')).toBeVisible()
-  await expect(alice.getByRole('img', { name: "QR code d'invitation au défi" })).toBeVisible()
+  // Le QR code n'est plus affiché dans la page : il s'ouvre dans un panneau.
+  await expect(alice.getByRole('img', { name: "QR code d'invitation au défi" })).toHaveCount(0)
+  await alice.getByRole('button', { name: 'Montrer le QR code' }).click()
+  await expect(alice.getByRole('dialog', { name: 'Invite ta bande' }).getByRole('img', { name: "QR code d'invitation au défi" })).toBeVisible()
+  await alice.keyboard.press('Escape')
   await writeGoal(alice, 'Courir un semi en moins de 1h50', '1h50', 'temps')
 
-  const inviteUrl = (await alice.locator('.invite-url').textContent())!.trim()
+  const inviteUrl = await inviteLink(alice)
   expect(inviteUrl).toMatch(/\/rejoindre\/[0-9a-f]{10}$/)
 
   // Bob ouvre l'invitation sans être connecté, se connecte et revient sur l'invitation.
