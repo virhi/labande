@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth'
 import { daysUntil, errorMessage, formatDate, inviteUrl } from '../lib/format'
 import type { Tables } from '../lib/database.types'
 import { Avatar, BackLink, ErrorText, Screen } from '../components/ui'
+import QrCode from '../components/QrCode'
 
 type Member = { id: string; name: string }
 type Review = Tables<'goal_reviews'>
@@ -137,6 +138,10 @@ function InviteCard({ code }: { code: string }) {
   return (
     <section className="card stack">
       <h2>Invite ta bande</h2>
+      <div className="qr-box">
+        <QrCode value={url} label="QR code d'invitation au défi" />
+        <p className="muted small">Fais scanner ce QR code avec l'appareil photo, ou envoie le lien.</p>
+      </div>
       <p className="invite-url">{url}</p>
       <div className="grid2">
         <button type="button" className="btn outline" onClick={copy}>{copied ? 'Lien copié' : 'Copier le lien'}</button>

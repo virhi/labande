@@ -25,6 +25,9 @@ Connexion par lien envoyé par email (Supabase Auth). Dans Supabase › Authenti
 - **Site URL** : `https://labande.pages.dev`
 - **Redirect URLs** : `http://localhost:5173`
 
+Les comptes anonymes sont refusés : l'option « Allow anonymous sign-ins » doit rester désactivée, et la base
+bloque de toute façon les comptes anonymes (migration `block_anonymous`).
+
 L'envoi d'emails intégré à Supabase est limité à quelques emails par heure : pour plus de monde,
 configurer un SMTP (par exemple Resend) dans Authentication › Emails.
 
