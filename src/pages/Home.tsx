@@ -1,20 +1,18 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { daysUntil, errorMessage, formatDate } from '../lib/format'
+import { daysUntil, errorMessage, formatDate, plural } from '../lib/format'
 import { newSessions } from '../lib/recap'
 import type { Tables } from '../lib/database.types'
 import { Brand, ErrorText, Screen } from '../components/ui'
 
 export default function Home() {
-  const { session, profile, refreshProfile } = useAuth()
+  const { session, profile } = useAuth()
   const me = session!.user.id
   const [challenges, setChallenges] = useState<Tables<'challenges'>[] | null>(null)
   const [news, setNews] = useState<Record<string, number>>({})
   const [error, setError] = useState('')
-  const [editing, setEditing] = useState(false)
-  const [name, setName] = useState('')
 
   useEffect(() => {
     Promise.all([
@@ -41,49 +39,14 @@ export default function Home() {
     })
   }, [me])
 
-  async function saveName(e: FormEvent) {
-    e.preventDefault()
-    if (!profile) return
-    const { error } = await supabase.from('profiles').update({ display_name: name.trim() }).eq('id', profile.id)
-    if (error) return setError(errorMessage(error))
-    await refreshProfile()
-    setEditing(false)
-  }
 
   return (
-    <Screen>
-      <div className="row between">
-        <Brand />
-        <div className="row gap">
-          <Link to="/historique" className="link">Historique</Link>
-          <Link to="/mot-de-passe" className="link">Mot de passe</Link>
-          <button type="button" className="link" onClick={() => supabase.auth.signOut()}>
-            Se déconnecter
-          </button>
-        </div>
+    <Screen nav>
+      <Brand />
+      <div className="stack tight-gap">
+        <p className="muted">Salut {profile?.display_name ?? ''}</p>
+        <h1>Tes défis</h1>
       </div>
-
-      {editing ? (
-        <form className="card stack" onSubmit={saveName}>
-          <div className="field">
-            <label htmlFor="pseudo">Ton prénom ou pseudo</label>
-            <input id="pseudo" required maxLength={40} value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="row gap">
-            <button type="submit" className="btn primary">Enregistrer</button>
-            <button type="button" className="btn ghost" onClick={() => setEditing(false)}>Annuler</button>
-          </div>
-        </form>
-      ) : (
-        <p className="muted">
-          Tu apparais comme <strong>{profile?.display_name}</strong> ·{' '}
-          <button type="button" className="link" onClick={() => { setName(profile?.display_name ?? ''); setEditing(true) }}>
-            modifier
-          </button>
-        </p>
-      )}
-
-      <h1>Tes défis</h1>
       <ErrorText>{error}</ErrorText>
 
       {challenges === null ? (
@@ -96,7 +59,9 @@ export default function Home() {
         <ChallengeList challenges={challenges.filter((c) => daysUntil(c.end_date) >= 0)} news={news} />
       )}
 
-      <Link to="/nouveau" className="btn primary">Créer un défi</Link>
+      <Link to="/nouveau" className="card new-card">
+        <span aria-hidden="true">+</span> Créer un défi
+      </Link>
 
       {challenges && challenges.some((c) => daysUntil(c.end_date) < 0) && (
         <>
@@ -122,7 +87,7 @@ function ChallengeList({ challenges, news }: { challenges: Tables<'challenges'>[
                 {fresh > 0 && <span className="tag">{fresh > 1 ? `${fresh} nouvelles séances` : '1 nouvelle séance'}</span>}
               </span>
               <span className="muted">
-                {days > 0 ? `${days} jours restants` : days === 0 ? "C'est aujourd'hui ! Preuves et votes ouverts" : 'Terminé'} · fin le {formatDate(c.end_date)}
+                {days > 0 ? `${plural(days, 'jour')} restant${days > 1 ? 's' : ''}` : days === 0 ? "C'est aujourd'hui ! Preuves et votes ouverts" : 'Terminé'} · fin le {formatDate(c.end_date)}
               </span>
             </Link>
           </li>

@@ -6,7 +6,7 @@ import { daysUntil, errorMessage, formatDate, formatDuration, plural } from '../
 import { voteOutcome, type Outcome } from '../lib/challenge'
 import { sessionStats } from '../lib/stats'
 import type { Tables } from '../lib/database.types'
-import { BackLink, ErrorText, Screen } from '../components/ui'
+import { ErrorText, Screen } from '../components/ui'
 import { OutcomeBadge } from '../components/Finale'
 
 type Past = { challenge: Tables<'challenges'>; outcome: Outcome; sessions: number }
@@ -50,11 +50,7 @@ export default function Stats() {
   const decided = data?.past.filter((p) => p.outcome.status !== 'pending').length ?? 0
 
   return (
-    <Screen>
-      <div className="row gap">
-        <BackLink to="/" />
-        <p className="eyebrow">Historique</p>
-      </div>
+    <Screen nav>
       <h1>Tes stats</h1>
       <ErrorText>{error}</ErrorText>
 

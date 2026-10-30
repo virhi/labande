@@ -29,13 +29,13 @@ export default function NewPassword() {
   }
 
   function finish() {
+    navigate(recovering ? '/' : '/profil', { replace: true })
     endRecovery()
-    navigate('/', { replace: true })
   }
 
   return (
     <Screen>
-      {recovering ? <Brand /> : <BackLink to="/" />}
+      {recovering ? <Brand /> : <BackLink to="/profil" />}
       <h1>{recovering ? 'Nouveau mot de passe' : 'Changer de mot de passe'}</h1>
 
       {done ? (

@@ -1,9 +1,36 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { avatarColor, initial } from '../lib/format'
 
-export function Screen({ children }: { children: ReactNode }) {
-  return <main className="screen">{children}</main>
+// nav : écran principal, avec la barre d'onglets en bas.
+export function Screen({ children, nav = false }: { children: ReactNode; nav?: boolean }) {
+  return (
+    <>
+      <main className={nav ? 'screen with-nav' : 'screen'}>{children}</main>
+      {nav && <TabBar />}
+    </>
+  )
+}
+
+const NAV = [
+  { to: '/', label: 'Défis', icon: 'M5 21V4M5 4h11l-2 4 2 4H5' },
+  { to: '/historique', label: 'Historique', icon: 'M4 20h16M7 16v-5M12 16V7M17 16v-8' },
+  { to: '/profil', label: 'Profil', icon: 'M12 12a4 4 0 100-8 4 4 0 000 8zM5 21a7 7 0 0114 0' },
+]
+
+function TabBar() {
+  return (
+    <nav className="tabbar" aria-label="Navigation principale">
+      {NAV.map((n) => (
+        <NavLink key={n.to} to={n.to} end className={({ isActive }) => (isActive ? 'tabbar-item on' : 'tabbar-item')}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d={n.icon} />
+          </svg>
+          {n.label}
+        </NavLink>
+      ))}
+    </nav>
+  )
 }
 
 export function BackLink({ to, label = 'Retour' }: { to: string; label?: string }) {

@@ -9,13 +9,38 @@ test('un mauvais mot de passe est refusé', async ({ page }) => {
 
 test('connexion, session conservée, puis déconnexion', async ({ page }) => {
   await login(page, ALICE)
-  await expect(page.getByText('Tu apparais comme')).toContainText('Alice')
+  await expect(page.getByText('Salut Alice')).toBeVisible()
 
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Tes défis' })).toBeVisible()
 
+  // La déconnexion est dans l'onglet Profil.
+  const nav = page.getByRole('navigation', { name: 'Navigation principale' })
+  await nav.getByRole('link', { name: 'Profil' }).click()
+  await expect(page.getByRole('heading', { name: 'Profil' })).toBeVisible()
+  await expect(page.getByText('alice@labande.test')).toBeVisible()
+  await nav.getByRole('link', { name: 'Historique' }).click()
+  await expect(page.getByRole('heading', { name: 'Tes stats' })).toBeVisible()
+  await nav.getByRole('link', { name: 'Profil' }).click()
   await page.getByRole('button', { name: 'Se déconnecter' }).click()
   await expect(page.getByRole('tab', { name: 'Se connecter' })).toBeVisible()
+})
+
+test('le profil change le pseudo et mène au mot de passe', async ({ page }) => {
+  await login(page, ALICE)
+  await page.goto('/profil')
+  await page.getByRole('button', { name: 'Changer mon pseudo' }).click()
+  await page.getByLabel('Ton prénom ou pseudo').fill('Alice B')
+  await page.getByRole('button', { name: 'Enregistrer' }).click()
+  await expect(page.getByText('Alice B', { exact: true })).toBeVisible()
+  // On remet le pseudo d'origine pour les autres tests.
+  await page.getByRole('button', { name: 'Changer mon pseudo' }).click()
+  await page.getByLabel('Ton prénom ou pseudo').fill('Alice')
+  await page.getByRole('button', { name: 'Enregistrer' }).click()
+  await expect(page.getByText('Alice', { exact: true })).toBeVisible()
+
+  await page.getByRole('link', { name: 'Mot de passe' }).click()
+  await expect(page.getByRole('heading', { name: 'Changer de mot de passe' })).toBeVisible()
 })
 
 test('l’inscription refuse deux mots de passe différents', async ({ page }) => {
