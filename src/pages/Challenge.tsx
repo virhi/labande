@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { CHALLENGE_NOT_FOUND, daysUntil, errorMessage, formatDate, inviteUrl, isoDate, plural } from '../lib/format'
@@ -227,6 +227,8 @@ export default function Challenge() {
         ) : (
           tabs
         )}
+
+        {challenge.created_by !== me && <LeaveChallenge challengeId={challenge.id} photo={proofs.find((p) => p.user_id === me)?.photo_path ?? null} />}
       </div>
 
       {days >= 0 && (
@@ -256,6 +258,41 @@ export default function Challenge() {
         </Sheet>
       )}
     </Screen>
+  )
+}
+
+// Un membre (pas le créateur) peut quitter le défi : ses objectif, séances, preuve et votes partent avec lui.
+function LeaveChallenge({ challengeId, photo }: { challengeId: string; photo: string | null }) {
+  const navigate = useNavigate()
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function leave() {
+    setBusy(true)
+    setError('')
+    if (photo) await supabase.storage.from('proofs').remove([photo])
+    const { error } = await supabase.rpc('leave_challenge', { p_challenge_id: challengeId })
+    setBusy(false)
+    if (error) return setError(errorMessage(error))
+    navigate('/', { replace: true })
+  }
+
+  return (
+    <section className="stack leave">
+      <ErrorText>{error}</ErrorText>
+      {confirming ? (
+        <div className="card stack danger">
+          <p>Ton objectif, tes séances, ta preuve et tes votes seront effacés de ce défi.</p>
+          <div className="grid2">
+            <button type="button" className="btn delete" onClick={leave} disabled={busy}>{busy ? 'Départ…' : 'Oui, quitter'}</button>
+            <button type="button" className="btn outline" onClick={() => setConfirming(false)}>Annuler</button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" className="link danger-link center" onClick={() => setConfirming(true)}>Quitter le défi</button>
+      )}
+    </section>
   )
 }
 

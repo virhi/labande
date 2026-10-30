@@ -69,4 +69,10 @@ test('jour J : preuve avec photo, vote de la bande et historique', async ({ brow
   await expect(alice.getByRole('heading', { name: 'Tes stats' })).toBeVisible()
   const row = alice.getByRole('link', { name: new RegExp(name) })
   await expect(row.getByText('Raté', { exact: true })).toBeVisible()
+
+  // Alice supprime le défi : sa photo de preuve part avec lui.
+  await alice.goto(`${url}/modifier`)
+  await alice.getByRole('button', { name: 'Supprimer le défi' }).click()
+  await alice.getByRole('button', { name: 'Oui, supprimer' }).click()
+  await expect(alice.getByRole('heading', { name: 'Tes défis' })).toBeVisible()
 })

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { errorMessage } from '../lib/format'
@@ -17,6 +17,26 @@ export default function Profile() {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [confirming, setConfirming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const navigate = useNavigate()
+
+  async function deleteAccount() {
+    setDeleting(true)
+    setDeleteError('')
+    // On efface d'abord ses photos de preuve : le stockage ne suit pas la base.
+    const photos = await supabase.from('proofs').select('photo_path').eq('user_id', session!.user.id).not('photo_path', 'is', null)
+    const paths = (photos.data ?? []).map((p) => p.photo_path!).filter(Boolean)
+    if (paths.length) await supabase.storage.from('proofs').remove(paths)
+    const { error } = await supabase.rpc('delete_account')
+    if (error) {
+      setDeleting(false)
+      return setDeleteError(errorMessage(error))
+    }
+    navigate('/', { replace: true })
+    await supabase.auth.signOut()
+  }
 
   async function saveName(e: FormEvent) {
     e.preventDefault()
@@ -76,6 +96,23 @@ export default function Profile() {
           </button>
         </li>
       </ul>
+
+      {confirming ? (
+        <section className="card stack danger" aria-label="Supprimer mon compte">
+          <h2>Supprimer ton compte ?</h2>
+          <p className="muted">
+            Ton profil, tes objectifs, séances, preuves et votes seront effacés. Les défis que tu as créés passent à un
+            autre membre de la bande ; ceux où tu es seul sont supprimés. C'est définitif.
+          </p>
+          <ErrorText>{deleteError}</ErrorText>
+          <div className="grid2">
+            <button type="button" className="btn delete" onClick={deleteAccount} disabled={deleting}>{deleting ? 'Suppression…' : 'Oui, supprimer'}</button>
+            <button type="button" className="btn outline" onClick={() => setConfirming(false)}>Annuler</button>
+          </div>
+        </section>
+      ) : (
+        <button type="button" className="link danger-link center" onClick={() => setConfirming(true)}>Supprimer mon compte</button>
+      )}
     </Screen>
   )
 }

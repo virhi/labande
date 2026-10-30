@@ -1,11 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ALICE, BOB, inviteLink, login } from './helpers'
-
-function inDays(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  return d.toLocaleDateString('sv-SE')
-}
+import { ALICE, BOB, createAndJoin, inDays, inviteLink, login, memberCard, writeGoal } from './helpers'
 
 test('le créateur modifie puis supprime son défi, les autres ne peuvent pas', async ({ browser }) => {
   const name = `Défi à gérer ${Date.now()}`
@@ -61,4 +55,30 @@ test('le créateur modifie puis supprime son défi, les autres ne peuvent pas', 
   await bob.goto('/')
   await expect(bob.getByRole('heading', { name: 'Tes défis' })).toBeVisible()
   await expect(bob.getByRole('link', { name: new RegExp(renamed) })).toHaveCount(0)
+})
+
+test('un membre quitte le défi, le créateur ne peut pas', async ({ browser }) => {
+  const name = `Défi à quitter ${Date.now()}`
+  const alice = await (await browser.newContext()).newPage()
+  const bob = await (await browser.newContext()).newPage()
+  await login(alice, ALICE)
+  await login(bob, BOB)
+  const url = await createAndJoin(alice, bob, name, inDays(20))
+  await writeGoal(bob, 'Objectif de Bob')
+
+  await alice.reload()
+  await expect(alice.getByRole('button', { name: 'Quitter le défi' })).toHaveCount(0)
+  await expect(memberCard(alice, 'Bob').getByText('Objectif de Bob')).toBeVisible()
+
+  await bob.getByRole('button', { name: 'Quitter le défi' }).click()
+  await bob.getByRole('button', { name: 'Oui, quitter' }).click()
+  await expect(bob.getByRole('heading', { name: 'Tes défis' })).toBeVisible()
+  await expect(bob.getByRole('link', { name: new RegExp(name) })).toHaveCount(0)
+  await bob.goto(url)
+  await expect(bob.getByRole('alert')).toHaveText("Ce défi n'existe plus, ou tu n'en fais pas partie.")
+
+  // Bob et son objectif ont disparu pour Alice.
+  await alice.reload()
+  await expect(alice.getByText('1 dans la bande')).toBeVisible()
+  await expect(memberCard(alice, 'Bob')).toHaveCount(0)
 })

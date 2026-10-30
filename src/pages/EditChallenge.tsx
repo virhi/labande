@@ -44,6 +44,10 @@ export default function EditChallenge() {
   async function remove() {
     setDeleting(true)
     setError('')
+    // Les photos de preuve ne partent pas toutes seules avec le défi.
+    const photos = await supabase.from('proofs').select('photo_path').eq('challenge_id', id).not('photo_path', 'is', null)
+    const paths = (photos.data ?? []).map((p) => p.photo_path!).filter(Boolean)
+    if (paths.length) await supabase.storage.from('proofs').remove(paths)
     const { error } = await supabase.from('challenges').delete().eq('id', id)
     setDeleting(false)
     if (error) return setError(errorMessage(error))

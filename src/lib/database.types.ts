@@ -82,6 +82,8 @@ export type Database = {
         Returns: { creator_name: string; end_date: string; id: string; member_count: number; name: string; stake: string | null }[]
       }
       join_challenge: { Args: { p_code: string }; Returns: string }
+      leave_challenge: { Args: { p_challenge_id: string }; Returns: undefined }
+      delete_account: { Args: Record<string, never>; Returns: undefined }
     }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }

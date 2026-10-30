@@ -773,3 +773,10 @@ details.more[open] > summary {
   color: #b91c1c;
   font-weight: 600;
 }
+
+.link.danger-link {
+  color: #b91c1c;
+}
+.leave {
+  margin-top: 8px;
+}

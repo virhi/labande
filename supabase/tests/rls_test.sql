@@ -340,6 +340,86 @@ insert into t_res (test, ok, detail)
 select 'photo : invisible pour un inconnu', count(*) = 0, count(*)::text from storage.objects where bucket_id = 'proofs';
 insert into t_res (test, ok, detail) select 'inconnu : ne voit pas les preuves', count(*) = 0, count(*)::text from public.proofs;
 
+-- Quitter un défi : le membre part avec ses traces, le créateur ne peut pas -------
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
+insert into t_ctx select 'cid3', public.create_challenge('À quitter', current_date + 15, null)::text;
+insert into t_ctx select 'code3', invite_code from public.challenges where id = (select v::uuid from t_ctx where k = 'cid3');
+insert into public.goals (challenge_id, user_id, title)
+select v::uuid, '00000000-0000-0000-0000-0000000000a1', 'Objectif d''Alice' from t_ctx where k = 'cid3';
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated","is_anonymous":false}', true);
+select public.join_challenge((select v from t_ctx where k = 'code3'));
+insert into public.goals (challenge_id, user_id, title)
+select v::uuid, '00000000-0000-0000-0000-0000000000b1', 'Objectif de Bob' from t_ctx where k = 'cid3';
+insert into public.goal_reviews (goal_id, reviewer_id, verdict)
+select id, '00000000-0000-0000-0000-0000000000b1', 'ok' from public.goals
+where challenge_id = (select v::uuid from t_ctx where k = 'cid3') and user_id = '00000000-0000-0000-0000-0000000000a1';
+insert into public.training_sessions (challenge_id, user_id)
+select v::uuid, '00000000-0000-0000-0000-0000000000b1' from t_ctx where k = 'cid3';
+
+do $$ begin
+  delete from public.challenge_members where challenge_id = (select v::uuid from t_ctx where k = 'cid3');
+  if found then
+    insert into t_res (test, ok) values ('quitter : pas de suppression directe de membre', false);
+  else
+    insert into t_res (test, ok) values ('quitter : pas de suppression directe de membre', true);
+  end if;
+exception when others then
+  insert into t_res (test, ok, detail) values ('quitter : pas de suppression directe de membre', true, sqlerrm);
+end $$;
+
+select public.leave_challenge((select v::uuid from t_ctx where k = 'cid3'));
+insert into t_res (test, ok, detail)
+select 'quitter : le membre ne voit plus le défi', count(*) = 0, count(*)::text
+from public.challenges where id = (select v::uuid from t_ctx where k = 'cid3');
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
+insert into t_res (test, ok, detail)
+select 'quitter : objectif, avis et séances du membre effacés',
+       (select count(*) from public.goals where challenge_id = (select v::uuid from t_ctx where k = 'cid3')) = 1
+   and (select count(*) from public.goal_reviews r join public.goals g on g.id = r.goal_id where g.challenge_id = (select v::uuid from t_ctx where k = 'cid3')) = 0
+   and (select count(*) from public.training_sessions where challenge_id = (select v::uuid from t_ctx where k = 'cid3')) = 0
+   and (select count(*) from public.challenge_members where challenge_id = (select v::uuid from t_ctx where k = 'cid3')) = 1,
+       null;
+
+do $$ begin
+  perform public.leave_challenge((select v::uuid from t_ctx where k = 'cid3'));
+  insert into t_res (test, ok) values ('quitter : le créateur ne peut pas quitter', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('quitter : le créateur ne peut pas quitter', true, sqlerrm);
+end $$;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e1","role":"authenticated","is_anonymous":false}', true);
+do $$ begin
+  perform public.leave_challenge((select v::uuid from t_ctx where k = 'cid'));
+  insert into t_res (test, ok) values ('quitter : refusé pour un non-membre', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('quitter : refusé pour un non-membre', true, sqlerrm);
+end $$;
+
+-- Supprimer son compte : défis partagés transmis, défis en solo effacés -----------
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
+select public.delete_account();
+
+reset role;
+insert into t_res (test, ok, detail)
+select 'compte : utilisateur et profil effacés',
+       not exists (select 1 from auth.users where id = '00000000-0000-0000-0000-0000000000a1')
+   and not exists (select 1 from public.profiles where id = '00000000-0000-0000-0000-0000000000a1'),
+       null;
+insert into t_res (test, ok, detail)
+select 'compte : le défi partagé passe à Bob', created_by = '00000000-0000-0000-0000-0000000000b1', created_by::text
+from public.challenges where id = (select v::uuid from t_ctx where k = 'cid');
+insert into t_res (test, ok, detail)
+select 'compte : le défi où il était seul est supprimé', count(*) = 0, count(*)::text
+from public.challenges where id = (select v::uuid from t_ctx where k = 'cid3');
+insert into t_res (test, ok, detail)
+select 'compte : ses données dans le défi partagé sont effacées',
+       not exists (select 1 from public.goals where user_id = '00000000-0000-0000-0000-0000000000a1')
+   and not exists (select 1 from public.votes where target_id = '00000000-0000-0000-0000-0000000000a1'),
+       null;
+set local role authenticated;
+
 -- Compte anonyme : bloqué partout -----------------------------------------------
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f1","role":"authenticated","is_anonymous":true}', true);
 
