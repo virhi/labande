@@ -452,6 +452,50 @@ exception when others then
   insert into t_res (test, ok, detail) values ('retirer : refusé pour quelqu''un hors du défi', true, sqlerrm);
 end $$;
 
+-- Stats admin : réservées aux admins, la liste des admins est inaccessible ------
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated","is_anonymous":false}', true);
+insert into t_res (test, ok, detail) select 'admin : un membre n''est pas admin', not public.is_admin(), null;
+do $$ begin
+  perform public.admin_stats();
+  insert into t_res (test, ok) values ('admin : stats refusées à un membre', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('admin : stats refusées à un membre', true, sqlerrm);
+end $$;
+do $$ begin
+  perform 1 from private.admins;
+  insert into t_res (test, ok) values ('admin : liste des admins illisible', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('admin : liste des admins illisible', true, sqlerrm);
+end $$;
+do $$ begin
+  insert into private.admins (user_id) values ('00000000-0000-0000-0000-0000000000b1');
+  insert into t_res (test, ok) values ('admin : impossible de s''ajouter soi-même', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('admin : impossible de s''ajouter soi-même', true, sqlerrm);
+end $$;
+
+reset role;
+insert into private.admins (user_id) values ('00000000-0000-0000-0000-0000000000a1');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
+insert into t_res (test, ok, detail)
+select 'admin : l''admin reçoit les totaux et 8 semaines',
+       public.is_admin()
+   and (s -> 'totals' ->> 'users')::int >= 3
+   and jsonb_array_length(s -> 'weeks') = 8
+   and s ? 'retention' and s ? 'finale',
+       left(s::text, 200)
+from (select public.admin_stats() s) x;
+
+set local role anon;
+do $$ begin
+  perform public.admin_stats();
+  insert into t_res (test, ok) values ('admin : stats refusées à un visiteur', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('admin : stats refusées à un visiteur', true, sqlerrm);
+end $$;
+set local role authenticated;
+
 -- Supprimer son compte : défis partagés transmis, défis en solo effacés -----------
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
 select public.delete_account();

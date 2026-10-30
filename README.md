@@ -73,6 +73,18 @@ Les migrations SQL sont dans `supabase/migrations/`, dans l'ordre de leur nom. E
 (profils, défis, membres, objectifs, avis, séances, preuves, votes), les fonctions `create_challenge`,
 `get_invite` et `join_challenge`, et les règles d'accès (RLS) : on ne voit que les défis dont on est membre.
 
+## Stats admin
+
+La page `/stats-admin` (lien « Stats de La Bande » dans le Profil) affiche des totaux sur toute l'app.
+La base ne les donne qu'aux comptes listés dans `private.admins`, que l'app ne peut ni lire ni modifier.
+Pour ajouter un admin, dans l'éditeur SQL de Supabase :
+
+```sql
+insert into private.admins (user_id) select id from auth.users where email = 'toi@exemple.fr';
+```
+
+Sur le projet de test, `alice@labande.test` est admin (test e2e `admin.spec.ts`).
+
 ## Connexion
 
 Connexion par lien envoyé par email (Supabase Auth). Dans Supabase › Authentication › URL Configuration :

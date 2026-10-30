@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -22,6 +22,12 @@ export default function Profile() {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
   const navigate = useNavigate()
+  const [admin, setAdmin] = useState(false)
+
+  // Le lien n'est qu'un raccourci : c'est la base qui réserve les chiffres aux admins.
+  useEffect(() => {
+    supabase.rpc('is_admin').then(({ data }) => setAdmin(data === true))
+  }, [])
 
   async function deleteAccount() {
     setDeleting(true)
@@ -87,6 +93,14 @@ export default function Profile() {
               <Chevron />
             </Link>
           </li>
+          {admin && (
+            <li>
+              <Link to="/stats-admin" className="menu-item">
+                <span className="grow">Stats de La Bande</span>
+                <Chevron />
+              </Link>
+            </li>
+          )}
         </ul>
       )}
 

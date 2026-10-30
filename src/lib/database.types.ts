@@ -84,6 +84,8 @@ export type Database = {
       join_challenge: { Args: { p_code: string }; Returns: string }
       leave_challenge: { Args: { p_challenge_id: string }; Returns: undefined }
       remove_member: { Args: { p_challenge_id: string; p_user_id: string }; Returns: undefined }
+      is_admin: { Args: Record<string, never>; Returns: boolean }
+      admin_stats: { Args: Record<string, never>; Returns: unknown }
       delete_account: { Args: Record<string, never>; Returns: undefined }
     }
     Enums: { [_ in never]: never }

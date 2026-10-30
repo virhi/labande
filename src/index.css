@@ -898,3 +898,14 @@ body:has(input:focus, textarea:focus) .sticky-cta {
   gap: 6px;
   flex-shrink: 0;
 }
+.bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--soft);
+  overflow: hidden;
+}
+.bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
