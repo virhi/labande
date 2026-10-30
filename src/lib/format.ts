@@ -28,6 +28,8 @@ export function avatarColor(id: string): string {
   return AVATAR_COLORS[h % AVATAR_COLORS.length]
 }
 
+export const CHALLENGE_NOT_FOUND = "Ce défi n'existe plus, ou tu n'en fais pas partie."
+
 export function errorMessage(e: unknown): string {
   if (e && typeof e === 'object' && 'message' in e) return String((e as { message: unknown }).message)
   return 'Une erreur est survenue.'

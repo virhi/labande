@@ -161,6 +161,61 @@ exception when others then
   insert into t_res (test, ok, detail) values ('inconnu : ne peut pas voter', true, sqlerrm);
 end $$;
 
+-- Modifier et supprimer un défi : réservé au créateur ---------------------------
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
+
+insert into t_ctx select 'cid2', public.create_challenge('À supprimer', current_date + 10, null)::text;
+insert into t_ctx select 'code2', invite_code from public.challenges where id = (select v::uuid from t_ctx where k = 'cid2');
+
+update public.challenges set name = '  Nouveau nom  ', stake = '  ' where id = (select v::uuid from t_ctx where k = 'cid2');
+insert into t_res (test, ok, detail)
+select 'modifier : le créateur change nom et enjeu (nettoyés)', name = 'Nouveau nom' and stake is null, name || ' / ' || coalesce(stake, 'null')
+from public.challenges where id = (select v::uuid from t_ctx where k = 'cid2');
+
+do $$ begin
+  update public.challenges set end_date = current_date - 1 where id = (select v::uuid from t_ctx where k = 'cid2');
+  insert into t_res (test, ok) values ('modifier : date passée refusée', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('modifier : date passée refusée', true, sqlerrm);
+end $$;
+
+do $$ begin
+  update public.challenges set created_by = '00000000-0000-0000-0000-0000000000b1' where id = (select v::uuid from t_ctx where k = 'cid2');
+  insert into t_res (test, ok) values ('modifier : impossible de changer le créateur', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('modifier : impossible de changer le créateur', true, sqlerrm);
+end $$;
+
+do $$ begin
+  update public.challenges set invite_code = 'choisi' where id = (select v::uuid from t_ctx where k = 'cid2');
+  insert into t_res (test, ok) values ('modifier : impossible de choisir le code d''invitation', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('modifier : impossible de choisir le code d''invitation', true, sqlerrm);
+end $$;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated","is_anonymous":false}', true);
+select public.join_challenge((select v from t_ctx where k = 'code2'));
+insert into public.goals (challenge_id, user_id, title)
+select v::uuid, '00000000-0000-0000-0000-0000000000b1', 'Objectif de Bob' from t_ctx where k = 'cid2';
+
+with d as (delete from public.challenges returning 1)
+insert into t_res (test, ok, detail) select 'supprimer : un membre ne peut pas supprimer le défi', count(*) = 0, count(*)::text from d;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
+with d as (delete from public.challenges where id = (select v::uuid from t_ctx where k = 'cid2') returning 1)
+insert into t_res (test, ok, detail) select 'supprimer : le créateur supprime son défi', count(*) = 1, count(*)::text from d;
+
+reset role;
+insert into t_res (test, ok, detail)
+select 'supprimer : membres et objectifs effacés avec le défi',
+       (select count(*) from public.challenge_members where challenge_id = (select v::uuid from t_ctx where k = 'cid2')) = 0
+   and (select count(*) from public.goals where challenge_id = (select v::uuid from t_ctx where k = 'cid2')) = 0,
+       null;
+insert into t_res (test, ok, detail)
+select 'supprimer : le premier défi est intact', count(*) = 1, count(*)::text
+from public.challenges where id = (select v::uuid from t_ctx where k = 'cid');
+set local role authenticated;
+
 -- Compte anonyme : bloqué partout -----------------------------------------------
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f1","role":"authenticated","is_anonymous":true}', true);
 

@@ -8,6 +8,7 @@ import NewChallenge from './pages/NewChallenge'
 import Join from './pages/Join'
 import Challenge from './pages/Challenge'
 import NewPassword from './pages/NewPassword'
+import EditChallenge from './pages/EditChallenge'
 
 function Gate() {
   const { session, loading, recovering } = useAuth()
@@ -45,6 +46,7 @@ function Gate() {
       <Route path="/nouveau" element={<NewChallenge />} />
       <Route path="/rejoindre/:code" element={<Join />} />
       <Route path="/defi/:id" element={<Challenge />} />
+      <Route path="/defi/:id/modifier" element={<EditChallenge />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

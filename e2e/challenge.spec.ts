@@ -38,7 +38,7 @@ test('créer un défi, inviter, se mettre d’accord sur les objectifs', async (
   await bob.getByRole('button', { name: 'Rejoindre la bande' }).click()
 
   // Bob écrit son objectif et trouve celui d'Alice trop facile.
-  await expect(bob.getByRole('heading', { name })).toBeVisible()
+  await expect(bob.getByText('2 dans la bande')).toBeVisible()
   await writeGoal(bob, '50 tractions d’affilée', '50', 'tractions')
   const aliceCard = memberCard(bob, 'Alice')
   await expect(aliceCard.getByText('Courir un semi en moins de 1h50')).toBeVisible()

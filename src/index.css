@@ -313,6 +313,18 @@ textarea:focus {
   border-color: var(--ink);
   color: var(--ink);
 }
+.btn.delete {
+  background: #b91c1c;
+  color: #fff;
+}
+.btn.outline-danger {
+  background: #fff;
+  border-color: #b91c1c;
+  color: #b91c1c;
+}
+.card.danger {
+  border: 2px solid #fecaca;
+}
 .btn.ghost {
   background: transparent;
   color: var(--ink-2);

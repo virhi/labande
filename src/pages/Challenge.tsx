@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { daysUntil, errorMessage, formatDate, inviteUrl } from '../lib/format'
+import { CHALLENGE_NOT_FOUND, daysUntil, errorMessage, formatDate, inviteUrl } from '../lib/format'
 import { isGoalValidated, launchState } from '../lib/challenge'
 import type { Tables } from '../lib/database.types'
 import { Avatar, BackLink, ErrorText, Screen } from '../components/ui'
@@ -21,11 +21,12 @@ type Data = {
 
 async function load(id: string): Promise<Data> {
   const [c, m, g] = await Promise.all([
-    supabase.from('challenges').select('*').eq('id', id).single(),
+    supabase.from('challenges').select('*').eq('id', id).maybeSingle(),
     supabase.from('challenge_members').select('user_id, joined_at, profiles(id, display_name)').eq('challenge_id', id).order('joined_at'),
     supabase.from('goals').select('*').eq('challenge_id', id),
   ])
   if (c.error) throw c.error
+  if (!c.data) throw new Error(CHALLENGE_NOT_FOUND)
   if (m.error) throw m.error
   if (g.error) throw g.error
   const goals = g.data
@@ -76,7 +77,10 @@ export default function Challenge() {
     <Screen>
       <div className="row gap">
         <BackLink to="/" />
-        <p className="eyebrow">{members.length} dans la bande</p>
+        <p className="eyebrow grow">{members.length} dans la bande</p>
+        {challenge.created_by === me && (
+          <Link to={`/defi/${challenge.id}/modifier`} className="link">Modifier</Link>
+        )}
       </div>
       <h1>{challenge.name}</h1>
 
