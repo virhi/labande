@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { avatarColor, initial } from '../lib/format'
 import { PASSWORD_RULES } from '../lib/password'
+import { formatQuantity, type Progress } from '../lib/progress'
 
 // nav : écran principal, avec la barre d'onglets en bas.
 export function Screen({ children, nav = false }: { children: ReactNode; nav?: boolean }) {
@@ -79,5 +80,23 @@ export function PasswordRules({ password, id }: { password: string; id: string }
         )
       })}
     </ul>
+  )
+}
+
+// Barre de progression vers un objectif chiffré (somme des séances).
+export function ProgressBar({ progress, label, dark = false }: { progress: Progress; label: string; dark?: boolean }) {
+  const pct = Math.round(progress.ratio * 100)
+  return (
+    <div className={dark ? 'progress on-dark' : 'progress'}>
+      <div className="row between small">
+        <span>
+          <strong>{formatQuantity(progress.done)}</strong> / {formatQuantity(progress.target)} {progress.unit}
+        </span>
+        <span>{pct} %</span>
+      </div>
+      <div className="bar" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+        <span style={{ width: `${pct}%` }} />
+      </div>
+    </div>
   )
 }

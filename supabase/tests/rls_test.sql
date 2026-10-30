@@ -452,6 +452,113 @@ exception when others then
   insert into t_res (test, ok, detail) values ('retirer : refusé pour quelqu''un hors du défi', true, sqlerrm);
 end $$;
 
+-- Séances chiffrées, bravos et « rejouer » -----------------------------------------
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
+insert into t_ctx select 'cid5', public.create_challenge('Bande à rejouer', current_date + 15, null)::text;
+insert into t_ctx select 'code5', invite_code from public.challenges where id = (select v::uuid from t_ctx where k = 'cid5');
+do $$ begin
+  insert into public.goals (challenge_id, user_id, title, target_value, unit, track_progress)
+  values ((select v::uuid from t_ctx where k = 'cid5'), '00000000-0000-0000-0000-0000000000a1', 'Semi', '1h50', 'temps', true);
+  insert into t_res (test, ok) values ('progression : refusée sans cible chiffrée', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('progression : refusée sans cible chiffrée', true, sqlerrm);
+end $$;
+insert into public.goals (challenge_id, user_id, title, target_value, unit, track_progress)
+values ((select v::uuid from t_ctx where k = 'cid5'), '00000000-0000-0000-0000-0000000000a1', 'Rouler 100 km', '100', 'km', true);
+insert into t_res (test, ok, detail)
+select 'progression : cible chiffrée acceptée', count(*) = 1, null from public.goals
+where challenge_id = (select v::uuid from t_ctx where k = 'cid5') and track_progress;
+do $$ begin
+  insert into public.training_sessions (challenge_id, user_id, value)
+  values ((select v::uuid from t_ctx where k = 'cid5'), '00000000-0000-0000-0000-0000000000a1', 0);
+  insert into t_res (test, ok) values ('progression : quantité nulle refusée', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('progression : quantité nulle refusée', true, sqlerrm);
+end $$;
+insert into public.training_sessions (challenge_id, user_id, value, kind)
+values ((select v::uuid from t_ctx where k = 'cid5'), '00000000-0000-0000-0000-0000000000a1', 42.5, 'Vélo');
+insert into t_ctx select 'sess5', id::text from public.training_sessions
+where challenge_id = (select v::uuid from t_ctx where k = 'cid5') and user_id = '00000000-0000-0000-0000-0000000000a1';
+
+do $$ begin
+  insert into public.session_cheers (session_id, challenge_id, user_id)
+  values ((select v::uuid from t_ctx where k = 'sess5'), (select v::uuid from t_ctx where k = 'cid5'), '00000000-0000-0000-0000-0000000000a1');
+  insert into t_res (test, ok) values ('bravo : pas pour sa propre séance', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('bravo : pas pour sa propre séance', true, sqlerrm);
+end $$;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e1","role":"authenticated","is_anonymous":false}', true);
+do $$ begin
+  insert into public.session_cheers (session_id, challenge_id, user_id)
+  values ((select v::uuid from t_ctx where k = 'sess5'), (select v::uuid from t_ctx where k = 'cid5'), '00000000-0000-0000-0000-0000000000e1');
+  insert into t_res (test, ok) values ('bravo : refusé hors de la bande', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('bravo : refusé hors de la bande', true, sqlerrm);
+end $$;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated","is_anonymous":false}', true);
+select public.join_challenge((select v from t_ctx where k = 'code5'));
+do $$ begin
+  insert into public.session_cheers (session_id, challenge_id, user_id)
+  values ((select v::uuid from t_ctx where k = 'sess5'), (select v::uuid from t_ctx where k = 'cid'), '00000000-0000-0000-0000-0000000000b1');
+  insert into t_res (test, ok) values ('bravo : rangé dans le défi de la séance', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('bravo : rangé dans le défi de la séance', true, sqlerrm);
+end $$;
+insert into public.session_cheers (session_id, challenge_id, user_id)
+values ((select v::uuid from t_ctx where k = 'sess5'), (select v::uuid from t_ctx where k = 'cid5'), '00000000-0000-0000-0000-0000000000b1');
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e1","role":"authenticated","is_anonymous":false}', true);
+insert into t_res (test, ok, detail)
+select 'bravo : invisible hors de la bande', count(*) = 0, count(*)::text from public.session_cheers;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
+insert into t_res (test, ok, detail)
+select 'bravo : visible par la bande', count(*) = 1, count(*)::text from public.session_cheers
+where session_id = (select v::uuid from t_ctx where k = 'sess5');
+delete from public.session_cheers where user_id = '00000000-0000-0000-0000-0000000000b1';
+insert into t_res (test, ok, detail)
+select 'bravo : on ne retire pas celui d''un autre', count(*) = 1, count(*)::text from public.session_cheers
+where session_id = (select v::uuid from t_ctx where k = 'sess5');
+
+do $$ begin
+  perform public.replay_challenge((select v::uuid from t_ctx where k = 'cid5'), 'Revanche', current_date + 30, null);
+  insert into t_res (test, ok) values ('rejouer : pas avant le jour J', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('rejouer : pas avant le jour J', true, sqlerrm);
+end $$;
+reset role;
+alter table public.challenges disable trigger challenges_check_update;
+update public.challenges set end_date = current_date where id = (select v::uuid from t_ctx where k = 'cid5');
+alter table public.challenges enable trigger challenges_check_update;
+set local role authenticated;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e1","role":"authenticated","is_anonymous":false}', true);
+do $$ begin
+  perform public.replay_challenge((select v::uuid from t_ctx where k = 'cid5'), 'Revanche', current_date + 30, null);
+  insert into t_res (test, ok) values ('rejouer : refusé hors de la bande', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('rejouer : refusé hors de la bande', true, sqlerrm);
+end $$;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated","is_anonymous":false}', true);
+insert into t_ctx select 'cid6', public.replay_challenge((select v::uuid from t_ctx where k = 'cid5'), 'Revanche', current_date + 30, null)::text;
+insert into t_res (test, ok, detail)
+select 'rejouer : même bande, lien vers le défi précédent, lancé par Bob',
+       c.replayed_from = (select v::uuid from t_ctx where k = 'cid5')
+   and c.created_by = '00000000-0000-0000-0000-0000000000b1'
+   and (select count(*) from public.challenge_members m where m.challenge_id = c.id) = 2,
+       null
+from public.challenges c where c.id = (select v::uuid from t_ctx where k = 'cid6');
+
+-- Quitter efface aussi ses bravos (celui de Bob est toujours là).
+select public.leave_challenge((select v::uuid from t_ctx where k = 'cid5'));
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
+insert into t_res (test, ok, detail)
+select 'bravo : effacé quand on quitte le défi', count(*) = 0, count(*)::text from public.session_cheers
+where session_id = (select v::uuid from t_ctx where k = 'sess5');
+
 -- Stats admin : réservées aux admins, la liste des admins est inaccessible ------
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated","is_anonymous":false}', true);
 insert into t_res (test, ok, detail) select 'admin : un membre n''est pas admin', not public.is_admin(), null;

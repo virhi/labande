@@ -3,10 +3,12 @@ import { supabase } from '../lib/supabase'
 import { errorMessage, formatDate, formatDay, formatDuration, isoDate, plural } from '../lib/format'
 import { pastWeeks, weekRecap, weekStart } from '../lib/recap'
 import type { Tables } from '../lib/database.types'
+import { formatQuantity, parseQuantity } from '../lib/progress'
 import { Avatar, ErrorText } from './ui'
 
 type Member = { id: string; name: string }
 export type Session = Tables<'training_sessions'>
+export type Cheer = Pick<Tables<'session_cheers'>, 'session_id' | 'user_id'>
 
 const DAY_LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
 const KINDS = ['Course', 'Vélo', 'Natation', 'Muscu', 'Marche', 'Yoga', 'Escalade']
@@ -63,11 +65,13 @@ export function WeekRecap({ members, sessions, since }: { members: Member[]; ses
 }
 
 // initial : séance à refaire ; on reprend tout sauf la date.
-export function SessionForm({ challengeId, me, endDate, initial, onSaved, onCancel }: {
+// unit : l'objectif additionne les séances (« km ») ; on demande alors la quantité.
+export function SessionForm({ challengeId, me, endDate, initial, unit, onSaved, onCancel }: {
   challengeId: string
   me: string
   endDate: string
-  initial?: Pick<Session, 'kind' | 'duration_min' | 'note'> | null
+  initial?: Pick<Session, 'kind' | 'duration_min' | 'note' | 'value'> | null
+  unit?: string | null
   onSaved: () => void
   onCancel: () => void
 }) {
@@ -76,13 +80,16 @@ export function SessionForm({ challengeId, me, endDate, initial, onSaved, onCanc
   const [kind, setKind] = useState(initial?.kind ?? '')
   const [duration, setDuration] = useState(initial?.duration_min ? String(initial.duration_min) : '')
   const [note, setNote] = useState(initial?.note ?? '')
+  const [quantity, setQuantity] = useState(unit && initial?.value ? formatQuantity(initial.value) : '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   async function save(e: FormEvent) {
     e.preventDefault()
-    setBusy(true)
     setError('')
+    const value = unit && quantity.trim() ? parseQuantity(quantity) : null
+    if (unit && quantity.trim() && !value) return setError(`Indique un nombre de ${unit}, par exemple 8 ou 12,5.`)
+    setBusy(true)
     const { error } = await supabase.from('training_sessions').insert({
       challenge_id: challengeId,
       user_id: me,
@@ -90,6 +97,7 @@ export function SessionForm({ challengeId, me, endDate, initial, onSaved, onCanc
       kind: kind.trim() || null,
       duration_min: duration ? Number(duration) : null,
       note: note.trim() || null,
+      value,
     })
     setBusy(false)
     if (error) return setError(errorMessage(error))
@@ -109,6 +117,13 @@ export function SessionForm({ challengeId, me, endDate, initial, onSaved, onCanc
           <input id="s-duree" type="number" inputMode="numeric" min={1} max={1440} value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="45" />
         </div>
       </div>
+      {unit && (
+        <div className="field">
+          <label htmlFor="s-valeur">Quantité ({unit})</label>
+          <input id="s-valeur" inputMode="decimal" maxLength={10} value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="8" />
+          <span className="hint">S'ajoute à ta progression.</span>
+        </div>
+      )}
       <div className="field">
         <label htmlFor="s-type">Activité</label>
         <input id="s-type" list="s-types" maxLength={40} value={kind} onChange={(e) => setKind(e.target.value)} placeholder="Course" />
@@ -133,11 +148,14 @@ const PAGE = 15
 
 // Séances en lignes compactes, groupées par jour.
 // onRepeat : absent une fois le défi terminé (plus de nouvelle séance possible).
-export function SessionList({ sessions, members, me, fresh, onChange, onRepeat }: {
+// unitOf : unité de l'objectif d'un membre quand il additionne ses séances.
+export function SessionList({ sessions, members, me, fresh, cheers = [], unitOf = () => null, onChange, onRepeat }: {
   sessions: Session[]
   members: Member[]
   me: string
   fresh: Set<string>
+  cheers?: Cheer[]
+  unitOf?: (userId: string) => string | null
   onChange: () => void
   onRepeat?: (session: Session) => void
 }) {
@@ -148,6 +166,14 @@ export function SessionList({ sessions, members, me, fresh, onChange, onRepeat }
   async function remove(id: string) {
     if (!window.confirm('Supprimer cette séance ?')) return
     const { error } = await supabase.from('training_sessions').delete().eq('id', id)
+    if (error) return setError(errorMessage(error))
+    onChange()
+  }
+
+  async function toggleCheer(s: Session, cheered: boolean) {
+    const { error } = cheered
+      ? await supabase.from('session_cheers').delete().eq('session_id', s.id).eq('user_id', me)
+      : await supabase.from('session_cheers').insert({ session_id: s.id, challenge_id: s.challenge_id, user_id: me })
     if (error) return setError(errorMessage(error))
     onChange()
   }
@@ -169,30 +195,53 @@ export function SessionList({ sessions, members, me, fresh, onChange, onRepeat }
         <div key={day} className="stack tight-gap">
           <h3 className="day-title">{formatDay(day)}</h3>
           <ul className="rows card">
-            {items.map((s) => (
-              <li key={s.id} className="row gap start session">
-                <Avatar id={s.user_id} name={nameOf(s.user_id)} size={32} />
-                <div className="stack tight grow">
-                  <span>
-                    <strong>{s.user_id === me ? 'Toi' : nameOf(s.user_id)}</strong>
-                    {' · '}
-                    {[s.kind ?? 'Séance', s.duration_min ? formatDuration(s.duration_min) : null].filter(Boolean).join(' · ')}
-                    {fresh.has(s.id) && <span className="tag">nouveau</span>}
-                  </span>
-                  {s.note && <span className="muted small">« {s.note} »</span>}
-                </div>
-                {s.user_id === me && (
-                  <div className="session-actions">
-                    {onRepeat && (
-                      <button type="button" className="link small" onClick={() => onRepeat(s)} aria-label={`Refaire la séance ${s.kind ?? ''} du ${formatDay(s.done_on)}`}>
-                        refaire
-                      </button>
+            {items.map((s) => {
+              const unit = unitOf(s.user_id)
+              const by = cheers.filter((c) => c.session_id === s.id)
+              const cheered = by.some((c) => c.user_id === me)
+              return (
+                <li key={s.id} className="row gap start session">
+                  <Avatar id={s.user_id} name={nameOf(s.user_id)} size={32} />
+                  <div className="stack tight grow">
+                    <span>
+                      <strong>{s.user_id === me ? 'Toi' : nameOf(s.user_id)}</strong>
+                      {' · '}
+                      {[
+                        s.kind ?? 'Séance',
+                        s.duration_min ? formatDuration(s.duration_min) : null,
+                        s.value && unit ? `${formatQuantity(s.value)} ${unit}` : null,
+                      ].filter(Boolean).join(' · ')}
+                      {fresh.has(s.id) && <span className="tag">nouveau</span>}
+                    </span>
+                    {s.note && <span className="muted small">« {s.note} »</span>}
+                    {by.length > 0 && (
+                      <span className="muted small">👏 {by.map((c) => (c.user_id === me ? 'toi' : nameOf(c.user_id))).join(', ')}</span>
                     )}
-                    <button type="button" className="link small" onClick={() => remove(s.id)}>supprimer</button>
                   </div>
-                )}
-              </li>
-            ))}
+                  {s.user_id !== me && (
+                    <button
+                      type="button"
+                      className={cheered ? 'cheer on' : 'cheer'}
+                      aria-pressed={cheered}
+                      aria-label={`Bravo à ${nameOf(s.user_id)} pour sa séance ${s.kind ?? ''}`}
+                      onClick={() => toggleCheer(s, cheered)}
+                    >
+                      👏
+                    </button>
+                  )}
+                  {s.user_id === me && (
+                    <div className="session-actions">
+                      {onRepeat && (
+                        <button type="button" className="link small" onClick={() => onRepeat(s)} aria-label={`Refaire la séance ${s.kind ?? ''} du ${formatDay(s.done_on)}`}>
+                          refaire
+                        </button>
+                      )}
+                      <button type="button" className="link small" onClick={() => remove(s.id)}>supprimer</button>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         </div>
       ))}

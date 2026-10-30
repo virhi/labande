@@ -6,11 +6,13 @@ import { CHALLENGE_NOT_FOUND, daysUntil, errorMessage, formatDate, inviteUrl, is
 import { newSessions, weekRecap, weekStart } from '../lib/recap'
 import { isGoalValidated, launchState } from '../lib/challenge'
 import type { Tables } from '../lib/database.types'
-import { Avatar, BackLink, ErrorText, Screen } from '../components/ui'
+import { Avatar, BackLink, ErrorText, ProgressBar, Screen } from '../components/ui'
+import { canTrack, goalProgress, type Progress } from '../lib/progress'
 import QrCode from '../components/QrCode'
-import { SessionForm, SessionList, WeekDots, WeekRecap, type Session } from '../components/Sessions'
+import { SessionForm, SessionList, WeekDots, WeekRecap, type Cheer, type Session } from '../components/Sessions'
 import Finale from '../components/Finale'
 import Sheet from '../components/Sheet'
+import Band from '../components/Band'
 
 type Member = { id: string; name: string }
 type Review = Tables<'goal_reviews'>
@@ -31,21 +33,23 @@ type Data = {
   sessions: Session[]
   proofs: Tables<'proofs'>[]
   votes: Tables<'votes'>[]
+  cheers: Cheer[]
   lastSeen: Record<string, string>
 }
 
 async function load(id: string): Promise<Data> {
-  const [c, m, g, s, p, v] = await Promise.all([
+  const [c, m, g, s, p, v, ch] = await Promise.all([
     supabase.from('challenges').select('*').eq('id', id).maybeSingle(),
     supabase.from('challenge_members').select('user_id, joined_at, last_seen_at, profiles(id, display_name)').eq('challenge_id', id).order('joined_at'),
     supabase.from('goals').select('*').eq('challenge_id', id),
     supabase.from('training_sessions').select('*').eq('challenge_id', id).order('done_on', { ascending: false }).order('created_at', { ascending: false }),
     supabase.from('proofs').select('*').eq('challenge_id', id),
     supabase.from('votes').select('*').eq('challenge_id', id),
+    supabase.from('session_cheers').select('session_id, user_id').eq('challenge_id', id),
   ])
   if (c.error) throw c.error
   if (!c.data) throw new Error(CHALLENGE_NOT_FOUND)
-  for (const res of [m, g, s, p, v]) if (res.error) throw res.error
+  for (const res of [m, g, s, p, v, ch]) if (res.error) throw res.error
   const goals = g.data ?? []
   const r = goals.length
     ? await supabase.from('goal_reviews').select('*').in('goal_id', goals.map((x) => x.id))
@@ -59,6 +63,7 @@ async function load(id: string): Promise<Data> {
     sessions: s.data ?? [],
     proofs: p.data ?? [],
     votes: v.data ?? [],
+    cheers: ch.data ?? [],
     lastSeen: Object.fromEntries((m.data ?? []).map((row) => [row.user_id, row.last_seen_at])),
   }
 }
@@ -115,6 +120,8 @@ export default function Challenge() {
   const alone = members.length < 2
   const since = isoDate(new Date(challenge.created_at))
   const myGoal = goalOf(me)
+  const myProgress = goalProgress(myGoal, sessions)
+  const unitOf = (uid: string) => (goalOf(uid)?.track_progress ? goalOf(uid)!.unit : null)
   const myWeek = weekRecap([{ id: me }], sessions, weekStart(isoDate()))[0]
   const current = tab ?? (ready ? 'semaine' : 'objectifs')
 
@@ -157,15 +164,17 @@ export default function Challenge() {
             members={members}
             me={me}
             fresh={fresh}
+            cheers={data.cheers}
             onChange={reload}
+            unitOf={unitOf}
             onRepeat={days >= 0 ? (s) => { setTemplate(s); setSheet('session') } : undefined}
           />
         )}
         {current === 'objectifs' && (
           <>
-            <MyGoal challengeId={challenge.id} me={me} goal={myGoal} reviews={myGoal ? reviewsOf(myGoal.id) : []} reviewerCount={others.length} nameOf={nameOf} onSaved={reload} />
+            <MyGoal challengeId={challenge.id} me={me} goal={myGoal} progress={myProgress} reviews={myGoal ? reviewsOf(myGoal.id) : []} reviewerCount={others.length} nameOf={nameOf} onSaved={reload} />
             {others.map((m) => (
-              <OtherGoal key={m.id} member={m} me={me} goal={goalOf(m.id)} reviews={goalOf(m.id) ? reviewsOf(goalOf(m.id)!.id) : []} validated={goalOf(m.id) ? isValidated(goalOf(m.id)!) : false} nameOf={nameOf} onChange={reload} />
+              <OtherGoal key={m.id} member={m} me={me} goal={goalOf(m.id)} progress={goalProgress(goalOf(m.id), sessions)} reviews={goalOf(m.id) ? reviewsOf(goalOf(m.id)!.id) : []} validated={goalOf(m.id) ? isValidated(goalOf(m.id)!) : false} nameOf={nameOf} onChange={reload} />
             ))}
           </>
         )}
@@ -217,6 +226,7 @@ export default function Challenge() {
           <section className="card dark hero" aria-label="Ton défi">
             <span className="on-dark-muted small">Ton objectif</span>
             <span className="hero-goal">{myGoal?.title}</span>
+            {myProgress && <ProgressBar progress={myProgress} label="Ta progression" dark />}
             <span className="status ok on-dark">{message}</span>
             <span className="row gap">
               <span className="on-dark-muted small grow">Ta semaine</span>
@@ -229,13 +239,17 @@ export default function Challenge() {
         {finished ? (
           <>
             <Finale challengeId={challenge.id} me={me} members={members} proofs={proofs} votes={votes} onChange={reload} />
+            <Band challenge={challenge} memberCount={members.length} />
             <details className="more">
               <summary>Séances et objectifs</summary>
               <div className="stack">{tabs}</div>
             </details>
           </>
         ) : (
-          tabs
+          <>
+            {tabs}
+            <Band challenge={challenge} memberCount={members.length} />
+          </>
         )}
 
         {challenge.created_by !== me && <LeaveChallenge challengeId={challenge.id} photo={proofs.find((p) => p.user_id === me)?.photo_path ?? null} />}
@@ -257,6 +271,7 @@ export default function Challenge() {
           <SessionForm
             key={template?.id ?? 'new'}
             initial={template}
+            unit={unitOf(me)}
             challengeId={challenge.id}
             me={me}
             endDate={challenge.end_date}
@@ -347,10 +362,11 @@ function InviteCard({ code, bare = false }: { code: string; bare?: boolean }) {
   )
 }
 
-function MyGoal({ challengeId, me, goal, reviews, reviewerCount, nameOf, onSaved }: {
+function MyGoal({ challengeId, me, goal, progress, reviews, reviewerCount, nameOf, onSaved }: {
   challengeId: string
   me: string
   goal: Goal | undefined
+  progress: Progress | null
   reviews: Review[]
   reviewerCount: number
   nameOf: (id: string) => string
@@ -360,14 +376,18 @@ function MyGoal({ challengeId, me, goal, reviews, reviewerCount, nameOf, onSaved
   const [title, setTitle] = useState(goal?.title ?? '')
   const [target, setTarget] = useState(goal?.target_value ?? '')
   const [unit, setUnit] = useState(goal?.unit ?? '')
+  const [track, setTrack] = useState(goal?.track_progress ?? false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   async function save(e: FormEvent) {
     e.preventDefault()
-    setBusy(true)
     setError('')
-    const values = { title: title.trim(), target_value: target.trim() || null, unit: unit.trim() || null }
+    if (track && !canTrack(target, unit)) {
+      return setError('Pour additionner tes séances, mets un nombre en valeur cible (ex. 100) et une unité (ex. km).')
+    }
+    setBusy(true)
+    const values = { title: title.trim(), target_value: target.trim() || null, unit: unit.trim() || null, track_progress: track }
     const { error } = goal
       ? await supabase.from('goals').update(values).eq('id', goal.id)
       : await supabase.from('goals').insert({ ...values, challenge_id: challengeId, user_id: me })
@@ -399,6 +419,13 @@ function MyGoal({ challengeId, me, goal, reviews, reviewerCount, nameOf, onSaved
               <input id="unite" maxLength={40} value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="temps" />
             </div>
           </div>
+          <div className="check">
+            <input id="track" type="checkbox" checked={track} onChange={(e) => setTrack(e.target.checked)} aria-describedby="track-hint" />
+            <div>
+              <label htmlFor="track">Additionner mes séances</label>
+              <span id="track-hint" className="hint block">Pour un objectif comme « 100 km » : chaque séance ajoute ses km et la bande voit ta progression.</span>
+            </div>
+          </div>
           {goal && <p className="hint">Une nouvelle version repart en validation auprès de toute la bande.</p>}
           <ErrorText>{error}</ErrorText>
           <div className="actions">
@@ -409,7 +436,11 @@ function MyGoal({ challengeId, me, goal, reviews, reviewerCount, nameOf, onSaved
       ) : goal ? (
         <>
           <p className="goal-title">{goal.title}</p>
-          {goal.target_value && <p className="muted">Mesure : {goal.target_value}{goal.unit ? ` (${goal.unit})` : ''}</p>}
+          {progress ? (
+            <ProgressBar progress={progress} label="Ta progression" />
+          ) : (
+            goal.target_value && <p className="muted">Mesure : {goal.target_value}{goal.unit ? ` (${goal.unit})` : ''}</p>
+          )}
           {tooEasy.map((r) => (
             <div key={r.reviewer_id} className="alert">
               <strong>{nameOf(r.reviewer_id)} trouve ton objectif trop facile</strong>
@@ -432,10 +463,11 @@ function MyGoal({ challengeId, me, goal, reviews, reviewerCount, nameOf, onSaved
   )
 }
 
-function OtherGoal({ member, me, goal, reviews, validated, nameOf, onChange }: {
+function OtherGoal({ member, me, goal, progress, reviews, validated, nameOf, onChange }: {
   member: Member
   me: string
   goal: Goal | undefined
+  progress: Progress | null
   reviews: Review[]
   validated: boolean
   nameOf: (id: string) => string
@@ -476,7 +508,7 @@ function OtherGoal({ member, me, goal, reviews, validated, nameOf, onChange }: {
           {goal ? (
             <>
               <span>{goal.title}</span>
-              {goal.target_value && <span className="muted small">Mesure : {goal.target_value}{goal.unit ? ` (${goal.unit})` : ''}</span>}
+              {!progress && goal.target_value && <span className="muted small">Mesure : {goal.target_value}{goal.unit ? ` (${goal.unit})` : ''}</span>}
             </>
           ) : (
             <span className="muted">N'a pas encore choisi son objectif.</span>
@@ -484,6 +516,7 @@ function OtherGoal({ member, me, goal, reviews, validated, nameOf, onChange }: {
         </div>
       </div>
 
+      {progress && <ProgressBar progress={progress} label={`Progression de ${member.name}`} />}
       {goal && validated && <p className="status ok">Validé par toute la bande</p>}
       {goal && tooEasyBy.length > 0 && <p className="muted small">Trop facile selon {tooEasyBy.join(', ')}</p>}
 

@@ -24,9 +24,9 @@ export type Database = {
         ]
       }
       challenges: {
-        Row: { created_at: string; created_by: string; end_date: string; id: string; invite_code: string; name: string; stake: string | null }
-        Insert: { created_at?: string; created_by: string; end_date: string; id?: string; invite_code: string; name: string; stake?: string | null }
-        Update: { created_at?: string; created_by?: string; end_date?: string; id?: string; invite_code?: string; name?: string; stake?: string | null }
+        Row: { created_at: string; created_by: string; end_date: string; id: string; invite_code: string; name: string; replayed_from: string | null; stake: string | null }
+        Insert: { created_at?: string; created_by: string; end_date: string; id?: string; invite_code: string; name: string; replayed_from?: string | null; stake?: string | null }
+        Update: { created_at?: string; created_by?: string; end_date?: string; id?: string; invite_code?: string; name?: string; replayed_from?: string | null; stake?: string | null }
         Relationships: [
           { foreignKeyName: 'challenges_created_by_fkey'; columns: ['created_by']; isOneToOne: false; referencedRelation: 'profiles'; referencedColumns: ['id'] },
         ]
@@ -41,9 +41,9 @@ export type Database = {
         ]
       }
       goals: {
-        Row: { challenge_id: string; id: string; target_value: string | null; title: string; unit: string | null; updated_at: string; user_id: string }
-        Insert: { challenge_id: string; id?: string; target_value?: string | null; title: string; unit?: string | null; updated_at?: string; user_id: string }
-        Update: { challenge_id?: string; id?: string; target_value?: string | null; title?: string; unit?: string | null; updated_at?: string; user_id?: string }
+        Row: { challenge_id: string; id: string; target_value: string | null; title: string; track_progress: boolean; unit: string | null; updated_at: string; user_id: string }
+        Insert: { challenge_id: string; id?: string; target_value?: string | null; title: string; track_progress?: boolean; unit?: string | null; updated_at?: string; user_id: string }
+        Update: { challenge_id?: string; id?: string; target_value?: string | null; title?: string; track_progress?: boolean; unit?: string | null; updated_at?: string; user_id?: string }
         Relationships: [
           { foreignKeyName: 'goals_challenge_id_fkey'; columns: ['challenge_id']; isOneToOne: false; referencedRelation: 'challenges'; referencedColumns: ['id'] },
           { foreignKeyName: 'goals_user_id_fkey'; columns: ['user_id']; isOneToOne: false; referencedRelation: 'profiles'; referencedColumns: ['id'] },
@@ -59,6 +59,12 @@ export type Database = {
         Row: { challenge_id: string; created_at: string; note: string | null; photo_path: string | null; user_id: string }
         Insert: { challenge_id: string; created_at?: string; note?: string | null; photo_path?: string | null; user_id: string }
         Update: { challenge_id?: string; created_at?: string; note?: string | null; photo_path?: string | null; user_id?: string }
+        Relationships: Rel[]
+      }
+      session_cheers: {
+        Row: { challenge_id: string; created_at: string; session_id: string; user_id: string }
+        Insert: { challenge_id: string; created_at?: string; session_id: string; user_id: string }
+        Update: { challenge_id?: string; created_at?: string; session_id?: string; user_id?: string }
         Relationships: Rel[]
       }
       training_sessions: {
@@ -85,6 +91,7 @@ export type Database = {
       leave_challenge: { Args: { p_challenge_id: string }; Returns: undefined }
       remove_member: { Args: { p_challenge_id: string; p_user_id: string }; Returns: undefined }
       is_admin: { Args: Record<string, never>; Returns: boolean }
+      replay_challenge: { Args: { p_end_date: string; p_from: string; p_name: string; p_stake: string }; Returns: string }
       admin_stats: { Args: Record<string, never>; Returns: unknown }
       delete_account: { Args: Record<string, never>; Returns: undefined }
     }
