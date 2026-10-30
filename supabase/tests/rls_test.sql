@@ -397,6 +397,61 @@ exception when others then
   insert into t_res (test, ok, detail) values ('quitter : refusé pour un non-membre', true, sqlerrm);
 end $$;
 
+-- Retirer un membre : réservé au créateur, efface les traces du membre ------------
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
+insert into t_ctx select 'cid4', public.create_challenge('À trier', current_date + 15, null)::text;
+insert into t_ctx select 'code4', invite_code from public.challenges where id = (select v::uuid from t_ctx where k = 'cid4');
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e1","role":"authenticated","is_anonymous":false}', true);
+do $$ begin
+  perform public.remove_member((select v::uuid from t_ctx where k = 'cid4'), '00000000-0000-0000-0000-0000000000a1');
+  insert into t_res (test, ok) values ('retirer : refusé à un non-membre', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('retirer : refusé à un non-membre', true, sqlerrm);
+end $$;
+select public.join_challenge((select v from t_ctx where k = 'code4'));
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated","is_anonymous":false}', true);
+select public.join_challenge((select v from t_ctx where k = 'code4'));
+insert into public.goals (challenge_id, user_id, title)
+select v::uuid, '00000000-0000-0000-0000-0000000000b1', 'Objectif de Bob' from t_ctx where k = 'cid4';
+insert into public.training_sessions (challenge_id, user_id)
+select v::uuid, '00000000-0000-0000-0000-0000000000b1' from t_ctx where k = 'cid4';
+do $$ begin
+  perform public.remove_member((select v::uuid from t_ctx where k = 'cid4'), '00000000-0000-0000-0000-0000000000e1');
+  insert into t_res (test, ok) values ('retirer : refusé à un membre qui n''est pas le créateur', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('retirer : refusé à un membre qui n''est pas le créateur', true, sqlerrm);
+end $$;
+do $$ begin
+  perform private.purge_member((select v::uuid from t_ctx where k = 'cid4'), '00000000-0000-0000-0000-0000000000e1');
+  insert into t_res (test, ok) values ('retirer : le nettoyage interne n''est pas appelable', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('retirer : le nettoyage interne n''est pas appelable', true, sqlerrm);
+end $$;
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
+select public.remove_member((select v::uuid from t_ctx where k = 'cid4'), '00000000-0000-0000-0000-0000000000b1');
+insert into t_res (test, ok, detail)
+select 'retirer : le membre, son objectif et ses séances disparaissent',
+       not exists (select 1 from public.challenge_members where challenge_id = (select v::uuid from t_ctx where k = 'cid4') and user_id = '00000000-0000-0000-0000-0000000000b1')
+   and not exists (select 1 from public.goals where challenge_id = (select v::uuid from t_ctx where k = 'cid4'))
+   and not exists (select 1 from public.training_sessions where challenge_id = (select v::uuid from t_ctx where k = 'cid4'))
+   and exists (select 1 from public.challenge_members where challenge_id = (select v::uuid from t_ctx where k = 'cid4') and user_id = '00000000-0000-0000-0000-0000000000e1'),
+       null;
+do $$ begin
+  perform public.remove_member((select v::uuid from t_ctx where k = 'cid4'), '00000000-0000-0000-0000-0000000000a1');
+  insert into t_res (test, ok) values ('retirer : le créateur ne peut pas se retirer', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('retirer : le créateur ne peut pas se retirer', true, sqlerrm);
+end $$;
+do $$ begin
+  perform public.remove_member((select v::uuid from t_ctx where k = 'cid4'), '00000000-0000-0000-0000-0000000000b1');
+  insert into t_res (test, ok) values ('retirer : refusé pour quelqu''un hors du défi', false);
+exception when others then
+  insert into t_res (test, ok, detail) values ('retirer : refusé pour quelqu''un hors du défi', true, sqlerrm);
+end $$;
+
 -- Supprimer son compte : défis partagés transmis, défis en solo effacés -----------
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","is_anonymous":false}', true);
 select public.delete_account();

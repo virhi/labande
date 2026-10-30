@@ -82,3 +82,29 @@ test('un membre quitte le défi, le créateur ne peut pas', async ({ browser }) 
   await expect(alice.getByText('1 dans la bande')).toBeVisible()
   await expect(memberCard(alice, 'Bob')).toHaveCount(0)
 })
+
+test('le créateur retire un membre depuis « Modifier le défi »', async ({ browser }) => {
+  const name = `Défi à trier ${Date.now()}`
+  const alice = await (await browser.newContext()).newPage()
+  const bob = await (await browser.newContext()).newPage()
+  await login(alice, ALICE)
+  await login(bob, BOB)
+  const url = await createAndJoin(alice, bob, name, inDays(20))
+  await writeGoal(bob, 'Objectif de Bob')
+
+  await alice.reload()
+  await alice.getByRole('link', { name: 'Modifier le défi' }).click()
+  const members = alice.getByRole('region', { name: 'Membres' })
+  await expect(members.getByText('Créateur')).toBeVisible()
+  await members.getByRole('button', { name: 'Retirer Bob' }).click()
+  await alice.screenshot({ path: 'test-results/remove-member.png' })
+  await members.getByRole('button', { name: 'Oui, retirer' }).click()
+  // Seule dans la bande : la liste des membres n'a plus lieu d'être.
+  await expect(members).toHaveCount(0)
+
+  await alice.goto(url)
+  await expect(alice.getByText('1 dans la bande')).toBeVisible()
+  await expect(memberCard(alice, 'Bob')).toHaveCount(0)
+  await bob.goto(url)
+  await expect(bob.getByRole('alert')).toHaveText("Ce défi n'existe plus, ou tu n'en fais pas partie.")
+})
